@@ -23,7 +23,8 @@ select_xcode_version() {
 
     echo "xcode-version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
     
-    XCODE_PATH="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+
+    XCODE_PATH="/Applications/Xcode-${XCODE_VERSION}.app/Contents/Developer"
     if [ ! -d "$XCODE_PATH" ]; then
       echo "::error::Xcode version $XCODE_VERSION not found at $XCODE_PATH"
       exit 1
