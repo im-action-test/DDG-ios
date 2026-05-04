@@ -1,0 +1,72 @@
+name: Check Sparkle Update
+
+on:
+  schedule:
+    - cron: '0 1 * * 5'  # Every Friday at 01:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-update:
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Check for Sparkle update
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/sparkle/check_sparkle_update.sh
+
+      - name: Check for existing update PR
+        id: dedupe
+        if: steps.check.outputs.update_available == 'true'
+        run: |
+          branch="automation/sparkle-update-${{ steps.check.outputs.latest_version }}"
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+            echo "Branch ${branch} already exists — skipping task and PR creation."
+            echo "should_create=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_create=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve SPM packages
+        if: steps.dedupe.outputs.should_create == 'true'
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace DuckDuckGo.xcworkspace \
+            -scheme "macOS Browser"
+
+      - name: Create draft Pull Request
+        id: create-pr
+        if: steps.dedupe.outputs.should_create == 'true'
+        uses: peter-evans/create-pull-request@88bf0de51c7487d91e1abbb4899332e602c58bbf
+        with:
+          commit-message: "Update Sparkle to ${{ steps.check.outputs.latest_version }}"
+          committer: Dax the Duck <dax@duckduckgo.com>
+          author: Dax the Duck <dax@duckduckgo.com>
+          branch: automation/sparkle-update-${{ steps.check.outputs.latest_version }}
+          title: "Update Sparkle to ${{ steps.check.outputs.latest_version }}"
+          body: |
+            Updates Sparkle from `${{ steps.check.outputs.current_version }}` to `${{ steps.check.outputs.latest_version }}` (${{ steps.check.outputs.bump_type }} update).
+
+            [Compare changes on GitHub](https://github.com/sparkle-project/Sparkle/compare/${{ steps.check.outputs.current_version }}...${{ steps.check.outputs.latest_version }})
+
+            ---
+
+            ${{ steps.check.outputs.release_notes }}
+          labels: dependencies,macOS${{ steps.check.outputs.bump_type == 'major' && ',breaking' || '' }}
+          draft: true
+
+      - name: Mark PR ready for review
+        if: steps.create-pr.outputs.pull-request-url
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number="${{ steps.create-pr.outputs.pull-request-number }}"
+          gh pr ready "$pr_number"
+          gh pr edit "$pr_number" --add-reviewer diegoreymendez,jotaemepereira

@@ -1,0 +1,180 @@
+name: iOS - Make App Store Connect Release
+
+defaults:
+  run:
+    working-directory: iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: "Upload destination (App Store or TestFlight)"
+        default: testflight
+        type: choice
+        options:
+        - appstore
+        - testflight
+      asana-task-url:
+        description: "Asana release task URL"
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      asana-task-url:
+        description: "Asana release task URL"
+        required: true
+        type: string
+      branch:
+        description: "Branch name"
+        required: false
+        type: string
+      commit-sha:
+        description: "Commit SHA"
+        required: false
+        type: string
+      destination:
+        description: "Upload destination (TestFlight or App Store)"
+        default: testflight
+        type: string
+      measure-app-size:
+        description: "Whether to measure and track app sizes"
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      APPLE_API_KEY_BASE64:
+        required: true
+      APPLE_API_KEY_ID:
+        required: true
+      APPLE_API_KEY_ISSUER:
+        required: true
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      MATCH_PASSWORD:
+        required: true
+      MM_WEBHOOK_URL:
+        required: true
+      SSH_PRIVATE_KEY_FASTLANE_MATCH:
+        required: true
+
+jobs:
+  make-release:
+    runs-on: macos-26-xlarge
+    name: Make App Store Connect Release
+
+    env:
+      destination: ${{ github.event.inputs.destination || inputs.destination }}
+      asana-task-url: ${{ github.event.inputs.asana-task-url || inputs.asana-task-url }}
+      branch: ${{ inputs.branch || github.ref_name }}
+
+    steps:
+
+    - name: Check out the code
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+        ref: ${{ inputs.commit-sha || env.branch }}
+
+    - name: Set destination output
+      id: destination
+      run: |
+        INPUT_DESTINATION=${{ env.destination }}
+        echo "destination=${INPUT_DESTINATION:-"testflight"}" >> $GITHUB_OUTPUT
+
+    - name: Assert release branch
+      run: |
+        case "${branch}" in
+          *release/*) ;;
+          *hotfix/*) ;;
+          *coldfix/*) ;;
+          *) echo "👎 Not a release, hotfix, or coldfix branch"; exit 1 ;;
+        esac
+
+    - name: Register SSH keys for private repos
+      uses: webfactory/ssh-agent@v0.9.1
+      with:
+        ssh-private-key: |
+          ${{ secrets.SSH_PRIVATE_KEY_FASTLANE_MATCH }}
+
+    - name: Select Xcode
+      uses: ./.github/actions/select-xcode-version
+
+    - name: Setup Ruby and dependencies
+      uses: ./.github/actions/setup-ruby
+      with:
+        working-directory: iOS
+        cache-key-prefix: ios-ruby
+
+    - name: Archive and upload the app
+      env:
+        APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        APPLE_API_KEY_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER }}
+        MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      run: |
+        app_version="$(cut -d ' ' -f 3 < Configuration/Version.xcconfig)"
+        build_number="$(cut -d ' ' -f 3 < Configuration/BuildNumber.xcconfig)"
+        original_dsyms_path="${{ github.workspace }}/iOS/DuckDuckGo.app.dSYM.zip"
+        dsyms_path="${{ github.workspace }}/iOS/DuckDuckGo-${app_version}.${build_number}-dSYM.zip"
+        echo "dsyms_path=${dsyms_path}" >> $GITHUB_ENV
+        echo "app_version=${app_version}" >> $GITHUB_ENV
+        echo "build_number=${build_number}" >> $GITHUB_ENV
+        bundle exec fastlane release_${{ steps.destination.outputs.destination }}
+        mv -f "$original_dsyms_path" "$dsyms_path"
+
+    - name: Measure App Size
+      id: measure-app-size
+      if: success() && inputs.measure-app-size == true
+      continue-on-error: true
+      uses: ./.github/actions/measure-app-size
+      with:
+        report-file: "iOS/App Thinning Size Report.txt"
+        download-size-pixel-name: "m_ci_apple_ios_release_download_size"
+        installation-size-pixel-name: "m_ci_apple_ios_release_installation_size"
+        app-version: ${{ env.app_version }}
+        build-number: ${{ env.build_number }}
+
+    - name: Upload dSYMs artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: DuckDuckGo-${{ steps.destination.outputs.destination }}-dSYM-${{ env.app_version }}.${{ env.build_number }}
+        path: ${{ env.dsyms_path }}
+
+    - name: Upload debug symbols to S3
+      if: always()
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+        DSYM_S3_PATH: s3://${{ vars.DSYM_BUCKET_NAME }}/${{ vars.IOS_DSYM_BUCKET_PREFIX }}/
+      run: |
+        if [[ -f ${{ env.dsyms_path }} ]]; then
+          aws s3 cp "${{ env.dsyms_path }}" ${{ env.DSYM_S3_PATH }}
+        fi
+
+    - name: Update Sentry grouping rules
+      id: update-grouping-rules
+      continue-on-error: true
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+        DSYM_S3_PATH: s3://${{ vars.DSYM_BUCKET_NAME }}/${{ vars.IOS_DSYM_BUCKET_RULES_PREFIX }}/
+      run: |
+        bundle exec fastlane run generate_sentry_grouping_rules platform:ios output_file:grouping-rules.txt
+        aws s3 cp grouping-rules.txt ${{ env.DSYM_S3_PATH }}
+
+    - name: Send Mattermost message
+      if: success() || failure()
+      env:
+        WORKFLOW_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        DESTINATION: ${{ env.destination }}
+        PLATFORM: iOS
+      run: |
+        bundle exec fastlane run mattermost_send_message \
+          mattermost_webhook_url:${{ secrets.MM_WEBHOOK_URL }} \
+          github_handle:${{ github.actor }} \
+          template_name:$([[ "${{ job.status }}" == "success" ]] && echo "public-release-complete" || echo "public-release-failed")

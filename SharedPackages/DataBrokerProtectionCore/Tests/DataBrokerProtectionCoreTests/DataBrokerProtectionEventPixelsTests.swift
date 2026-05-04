@@ -1,0 +1,490 @@
+//
+//  DataBrokerProtectionEventPixelsTests.swift
+//
+//  Copyright © 2023 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import XCTest
+import Foundation
+@testable import DataBrokerProtectionCore
+import DataBrokerProtectionCoreTestsUtils
+
+final class DataBrokerProtectionEventPixelsTests: XCTestCase {
+
+    let database = MockDatabase()
+    let repository = MockDataBrokerProtectionEventPixelsRepository()
+    let handler = MockDataBrokerProtectionPixelsHandler()
+    let calendar = Calendar.current
+    let eightDaysSinceToday = Calendar.current.date(byAdding: .day, value: -8, to: Date())!
+
+    override func tearDown() {
+        handler.clear()
+        repository.clear()
+    }
+
+    func testWhenFireNewMatchEventPixelIsCalled_thenCorrectPixelIsFired() {
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+        let brokerURL = "testbroker.com"
+
+        sut.fireNewMatchEventPixel(dataBrokerURL: brokerURL)
+
+        let lastPixel = MockDataBrokerProtectionPixelsHandler.lastPixelsFired.last!
+        XCTAssertEqual(
+            lastPixel.name,
+            DataBrokerProtectionSharedPixels.scanningEventNewMatch(dataBrokerURL: brokerURL).name
+        )
+        XCTAssertEqual(lastPixel.params?[DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey], brokerURL)
+    }
+
+    func testWhenFireReappeareanceEventPixelIsCalled_thenCorrectPixelIsFired() {
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+        let brokerURL = "testbroker.com"
+
+        sut.fireReappeareanceEventPixel(dataBrokerURL: brokerURL)
+
+        let lastPixel = MockDataBrokerProtectionPixelsHandler.lastPixelsFired.last!
+        XCTAssertEqual(
+            lastPixel.name,
+            DataBrokerProtectionSharedPixels.scanningEventReAppearance(dataBrokerURL: brokerURL).name
+        )
+        XCTAssertEqual(lastPixel.params?[DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey], brokerURL)
+    }
+
+    func testWhenReportWasFiredInTheLastWeek_thenWeDoNotFireWeeklyPixels() {
+        repository.customGetLatestWeeklyPixel = Date().yesterday
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        sut.tryToFireWeeklyPixels(isAuthenticated: true)
+
+        XCTAssertFalse(repository.wasMarkWeeklyPixelSentCalled)
+    }
+
+    func testWhenReportWasNotFiredInTheLastWeek_thenWeFireWeeklyPixels() {
+        guard let eightDaysSinceToday = Calendar.current.date(byAdding: .day, value: -8, to: Date()) else {
+            XCTFail("This should no throw")
+            return
+        }
+
+        repository.customGetLatestWeeklyPixel = eightDaysSinceToday
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        sut.tryToFireWeeklyPixels(isAuthenticated: true)
+
+        XCTAssertTrue(repository.wasMarkWeeklyPixelSentCalled)
+    }
+
+    func testWhenLastWeeklyPixelIsNil_thenWeFireWeeklyPixels() {
+        repository.customGetLatestWeeklyPixel = nil
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        sut.tryToFireWeeklyPixels(isAuthenticated: true)
+
+        XCTAssertTrue(repository.wasMarkWeeklyPixelSentCalled)
+    }
+
+    func testWeeklyOptOuts_whenBrokerProfileQueriesHasMixedCreatedDates_thenFilteredCorrectly() {
+        // Given
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+        let extractedProfile = ExtractedProfile.mockWithoutRemovedDate
+
+        let optOutShouldNotInclude1 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -14, to: Date.now)!)
+        let optOutShouldNotInclude2 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -21, to: Date.now)!)
+        let optOutShouldNotInclude3 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -8, to: Date.now)!)
+        let optOutShouldNotInclude4 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -17, to: Date.now)!)
+        let optOutShouldNotInclude5 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -10, to: Date.now)!)
+        let optOutShouldInclude1 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -6, to: Date.now)!)
+        let optOutShouldInclude2 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -3, to: Date.now)!)
+        let optOutShouldInclude3 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -1, to: Date.now)!)
+        let optOutShouldInclude4 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -5, to: Date.now)!)
+        let optOutShouldInclude5 = OptOutJobData.mock(with: Calendar.current.date(byAdding: .day, value: -2, to: Date.now)!)
+        let brokerProfileQueryData = [BrokerProfileQueryData.mock(extractedProfile: extractedProfile,
+                                                                 optOutJobData: [optOutShouldNotInclude1,
+                                                                                 optOutShouldNotInclude2,
+                                                                                 optOutShouldInclude1,
+                                                                                 optOutShouldInclude2]),
+                                      BrokerProfileQueryData.mock(extractedProfile: extractedProfile,
+                                                                  optOutJobData: []),
+                                      BrokerProfileQueryData.mock(extractedProfile: extractedProfile,
+                                                                  optOutJobData: [optOutShouldNotInclude3,
+                                                                                  optOutShouldNotInclude4]),
+                                      BrokerProfileQueryData.mock(extractedProfile: extractedProfile,
+                                                                  optOutJobData: [optOutShouldInclude3]),
+                                      BrokerProfileQueryData.mock(extractedProfile: extractedProfile,
+                                                                  optOutJobData: [optOutShouldInclude4,
+                                                                                  optOutShouldNotInclude5,
+                                                                                  optOutShouldInclude5])]
+
+        // When
+        let weeklyOptOuts = sut.weeklyOptOuts(for: brokerProfileQueryData)
+
+        // Then
+        XCTAssertEqual(weeklyOptOuts.count, 5)
+        XCTAssertTrue(weeklyOptOuts.contains { $0.createdDate == optOutShouldInclude1.createdDate })
+        XCTAssertTrue(weeklyOptOuts.contains { $0.createdDate == optOutShouldInclude2.createdDate })
+        XCTAssertTrue(weeklyOptOuts.contains { $0.createdDate == optOutShouldInclude3.createdDate })
+        XCTAssertTrue(weeklyOptOuts.contains { $0.createdDate == optOutShouldInclude4.createdDate })
+        XCTAssertTrue(weeklyOptOuts.contains { $0.createdDate == optOutShouldInclude5.createdDate })
+    }
+
+    let extractedProfile1 = ExtractedProfile.mockWithName("Steve Jones", age: "20", addresses: [AddressCityState(city: "New York", state: "NY")])
+    let extractedProfile2 = ExtractedProfile.mockWithName("The Crock Jock", age: "24", addresses: [AddressCityState(city: "New York", state: "NY")])
+    let extractedProfile3 = ExtractedProfile.mockWithName("Wolfy Wolfgang", age: "40", addresses: [AddressCityState(city: "New York", state: "NY")])
+    let extractedProfile4 = ExtractedProfile.mockWithName("Pigeon Boy", age: "73", addresses: [AddressCityState(city: "Miami", state: "FL")])
+    let extractedProfile5 = ExtractedProfile.mockWithName("Definitely Not 20 Birds in a Trenchcoat", age: "7", addresses: [AddressCityState(city: "New York", state: "NY")])
+
+    let parentProfileMatching1 = ExtractedProfile.mockWithName("Steve Jones", age: "20", addresses: [AddressCityState(city: "New York", state: "NY")])
+    let parentProfileMatching2 = ExtractedProfile.mockWithName("The Crock Jock", age: "24", addresses: [AddressCityState(city: "New York", state: "NY")])
+    let parentProfileMatching3 = ExtractedProfile.mockWithName("Wolfy Wolfgang", age: "40", addresses: [AddressCityState(city: "New York", state: "NY")])
+    let parentProfileMatching4 = ExtractedProfile.mockWithName("Pigeon Boy", age: "73", addresses: [AddressCityState(city: "Miami", state: "FL")])
+    let parentProfileMatching5 = ExtractedProfile.mockWithName("Definitely Not 20 Birds in a Trenchcoat", age: "7", addresses: [AddressCityState(city: "New York", state: "NY")])
+
+    let parentProfileNotMatching1 = ExtractedProfile.mockWithName("The Phantom Oinker", age: "12", addresses: [AddressCityState(city: "New York", state: "NY")])
+    let parentProfileNotMatching2 = ExtractedProfile.mockWithName("Husky Sausage Dog", age: "4", addresses: [AddressCityState(city: "Miami", state: "FL")])
+    let parentProfileNotMatching3 = ExtractedProfile.mockWithName("Actually definitely 20 Birds in a Trenchcoat", age: "7", addresses: [AddressCityState(city: "New York", state: "NY")])
+
+    func testOrphanedProfilesCount_whenChildAndParentHaveSameProfiles_thenCountIsZero() {
+        // Given
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        let optOuts = [OptOutJobData.mock(with: extractedProfile1),
+                       OptOutJobData.mock(with: extractedProfile2),
+                       OptOutJobData.mock(with: extractedProfile3),
+                       OptOutJobData.mock(with: extractedProfile4),
+                       OptOutJobData.mock(with: extractedProfile5)]
+        let parentOptOuts = [OptOutJobData.mock(with: parentProfileMatching4),
+                             OptOutJobData.mock(with: parentProfileMatching2),
+                             OptOutJobData.mock(with: parentProfileMatching1),
+                             OptOutJobData.mock(with: parentProfileMatching3),
+                             OptOutJobData.mock(with: parentProfileMatching5)]
+
+        // When
+        let count = sut.orphanedProfilesCount(with: optOuts, parentOptOuts: parentOptOuts)
+
+        // Then
+        XCTAssertEqual(count, 0)
+    }
+
+    func testOrphanedProfilesCount_whenChildAndParentHaveDifferentProfiles_thenCountIsCorrect() {
+        // Given
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        let optOuts = [OptOutJobData.mock(with: extractedProfile1),
+                       OptOutJobData.mock(with: extractedProfile2),
+                       OptOutJobData.mock(with: extractedProfile3),
+                       OptOutJobData.mock(with: extractedProfile4),
+                       OptOutJobData.mock(with: extractedProfile5)]
+        let parentOptOuts = [OptOutJobData.mock(with: parentProfileNotMatching1),
+                             OptOutJobData.mock(with: parentProfileMatching2),
+                             OptOutJobData.mock(with: parentProfileMatching1),
+                             OptOutJobData.mock(with: parentProfileNotMatching2),
+                             OptOutJobData.mock(with: parentProfileNotMatching3)]
+
+        // When
+        let count = sut.orphanedProfilesCount(with: optOuts, parentOptOuts: parentOptOuts)
+
+        // Then
+        XCTAssertEqual(count, 3)
+    }
+
+    func testOrphanedProfilesCount_whenChildHasMoreProfiles_thenCountIsCorrect() {
+        // Given
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        let optOuts = [OptOutJobData.mock(with: extractedProfile1),
+                       OptOutJobData.mock(with: extractedProfile2),
+                       OptOutJobData.mock(with: extractedProfile3),
+                       OptOutJobData.mock(with: extractedProfile4),
+                       OptOutJobData.mock(with: extractedProfile5)]
+        let parentOptOuts = [OptOutJobData.mock(with: parentProfileMatching2),
+                             OptOutJobData.mock(with: parentProfileMatching1)]
+
+        // When
+        let count = sut.orphanedProfilesCount(with: optOuts, parentOptOuts: parentOptOuts)
+
+        // Then
+        XCTAssertEqual(count, 3)
+    }
+
+    func testChildBrokerURLsToOrphanedProfilesCount_whenChildAndParentHaveDifferentProfiles_thenCountIsCorrect() {
+        // Given
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        let childURL = "child.com"
+        let parentURL = "parent.com"
+
+        let brokerProfileQueryData = [BrokerProfileQueryData.mock(url: childURL,
+                                                                  parentURL: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile1),
+                                                                                  OptOutJobData.mock(with: extractedProfile2),
+                                                                                  OptOutJobData.mock(with: extractedProfile3)]),
+                                      BrokerProfileQueryData.mock(url: childURL,
+                                                                  parentURL: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile4),
+                                                                                  OptOutJobData.mock(with: extractedProfile5)]),
+                                      BrokerProfileQueryData.mock(url: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: parentProfileMatching1),
+                                                                                  OptOutJobData.mock(with: parentProfileNotMatching1)]),
+                                      BrokerProfileQueryData.mock(url: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: parentProfileMatching2),
+                                                                                  OptOutJobData.mock(with: parentProfileNotMatching2),
+                                                                                  OptOutJobData.mock(with: parentProfileNotMatching3)])]
+
+        // When
+        let brokerURLsToCounts = sut.childBrokerURLsToOrphanedProfilesWeeklyCount(for: brokerProfileQueryData)
+
+        // Then
+        XCTAssertEqual(brokerURLsToCounts, ["child.com": 3])
+    }
+
+    /*
+     fireWeeklyChildBrokerOrphanedOptOutsPixels
+     Test cases:
+     - Does fire for every child broker once (and _only_ child brokers)
+     */
+
+    let pixelName = DataBrokerProtectionSharedPixels.weeklyChildBrokerOrphanedOptOuts(dataBrokerURL: "",
+                                                                                      childParentRecordDifference: 0,
+                                                                                      calculatedOrphanedRecords: 0,
+                                                                                      isAuthenticated: true).name
+
+    func testFireWeeklyChildBrokerOrphanedOptOutsPixels_whenChildAndParentHaveSameProfiles_thenDoesNotFire() {
+        // Given
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        let childURL = "child.com"
+        let parentURL = "parent.com"
+
+        let brokerProfileQueryData = [BrokerProfileQueryData.mock(url: childURL,
+                                                                  parentURL: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile1),
+                                                                                  OptOutJobData.mock(with: extractedProfile2),
+                                                                                  OptOutJobData.mock(with: extractedProfile3)]),
+                                      BrokerProfileQueryData.mock(url: childURL,
+                                                                  parentURL: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile4),
+                                                                                  OptOutJobData.mock(with: extractedProfile5)]),
+                                      BrokerProfileQueryData.mock(url: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: parentProfileMatching1),
+                                                                                  OptOutJobData.mock(with: parentProfileMatching4)]),
+                                      BrokerProfileQueryData.mock(url: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: parentProfileMatching2),
+                                                                                  OptOutJobData.mock(with: parentProfileMatching3),
+                                                                                  OptOutJobData.mock(with: parentProfileMatching5)])]
+
+        database.brokerProfileQueryDataToReturn = brokerProfileQueryData
+        repository.customGetLatestWeeklyPixel = nil
+
+        // When
+        sut.tryToFireWeeklyPixels(isAuthenticated: true)
+
+        // Then
+        let pixels = MockDataBrokerProtectionPixelsHandler.lastPixelsFired
+        XCTAssertFalse(pixels.contains { $0.name == pixelName })
+    }
+
+    func testFireWeeklyChildBrokerOrphanedOptOutsPixels_whenChildAndParentHaveDifferentProfiles_thenFiresCorrectly() {
+        // Given
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        let childName = "child"
+        let childURL = "child.com"
+        let parentURL = "parent.com"
+
+        let brokerProfileQueryData = [BrokerProfileQueryData.mock(dataBrokerName: childName,
+                                                                  url: childURL,
+                                                                  parentURL: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile1),
+                                                                                  OptOutJobData.mock(with: extractedProfile2),
+                                                                                  OptOutJobData.mock(with: extractedProfile3)]),
+                                      BrokerProfileQueryData.mock(dataBrokerName: childName,
+                                                                  url: childURL,
+                                                                  parentURL: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile4),
+                                                                                  OptOutJobData.mock(with: extractedProfile5)]),
+                                      BrokerProfileQueryData.mock(url: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: parentProfileMatching1),
+                                                                                  OptOutJobData.mock(with: parentProfileNotMatching1)]),
+                                      BrokerProfileQueryData.mock(url: parentURL,
+                                                                  optOutJobData: [OptOutJobData.mock(with: parentProfileMatching2),
+                                                                                  OptOutJobData.mock(with: parentProfileNotMatching2),
+                                                                                  OptOutJobData.mock(with: parentProfileNotMatching3)])]
+
+        database.brokerProfileQueryDataToReturn = brokerProfileQueryData
+        repository.customGetLatestWeeklyPixel = nil
+
+        // When
+        sut.tryToFireWeeklyPixels(isAuthenticated: true)
+
+        // Then
+        let pixels = MockDataBrokerProtectionPixelsHandler.lastPixelsFired
+        let firedPixel = pixels.first { $0.name == pixelName }!
+        let parameters = firedPixel.params
+        XCTAssertEqual(parameters, [DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey: childURL,
+                                    DataBrokerProtectionSharedPixels.Consts.calculatedOrphanedRecords: "3",
+                                    DataBrokerProtectionSharedPixels.Consts.childParentRecordDifference: "0",
+                                    DataBrokerProtectionSharedPixels.Consts.isAuthenticated: "true"])
+    }
+
+    func testFireWeeklyChildBrokerOrphanedOptOutsPixels_whenThereAreMultipleChildBrokers_thenFiresOnceForEach() {
+        // Given
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        let childName1 = "child1"
+        let childURL1 = "child1.com"
+        let parentURL1 = "parent1.com"
+
+        let childName2 = "child2"
+        let childURL2 = "child2.com"
+
+        let childName3 = "child3"
+        let childURL3 = "child3.com"
+        let parentURL3 = "parent3.com"
+
+        let brokerProfileQueryData = [BrokerProfileQueryData.mock(dataBrokerName: childName1,
+                                                                  url: childURL1,
+                                                                  parentURL: parentURL1,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile1),
+                                                                                  OptOutJobData.mock(with: extractedProfile2)]),
+                                      BrokerProfileQueryData.mock(url: parentURL1,
+                                                                  optOutJobData: [OptOutJobData.mock(with: parentProfileMatching1)]),
+                                      BrokerProfileQueryData.mock(dataBrokerName: childName2,
+                                                                  url: childURL2,
+                                                                  parentURL: parentURL1,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile5),
+                                                                                  OptOutJobData.mock(with: extractedProfile3)]),
+                                      BrokerProfileQueryData.mock(dataBrokerName: childName3,
+                                                                  url: childURL3,
+                                                                  parentURL: parentURL3,
+                                                                  optOutJobData: [OptOutJobData.mock(with: extractedProfile4)]),
+                                      BrokerProfileQueryData.mock(url: parentURL3,
+                                                                  optOutJobData: [OptOutJobData.mock(with: parentProfileNotMatching3),
+                                                                                  OptOutJobData.mock(with: parentProfileMatching5)])]
+
+        database.brokerProfileQueryDataToReturn = brokerProfileQueryData
+        repository.customGetLatestWeeklyPixel = nil
+
+        // When
+        sut.tryToFireWeeklyPixels(isAuthenticated: true)
+
+        // Then
+        let pixels = MockDataBrokerProtectionPixelsHandler.lastPixelsFired
+        let firedPixels = pixels.filter { $0.name == pixelName }
+
+        XCTAssertEqual(firedPixels.count, 3)
+
+        let child1Pixel = firedPixels.filter { $0.params![DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey] == childURL1 }.first!
+        XCTAssertEqual(child1Pixel.params, [DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey: childURL1,
+                                            DataBrokerProtectionSharedPixels.Consts.calculatedOrphanedRecords: "1",
+                                            DataBrokerProtectionSharedPixels.Consts.childParentRecordDifference: "1",
+                                            DataBrokerProtectionSharedPixels.Consts.isAuthenticated: "true"])
+
+        let child2Pixel = firedPixels.filter { $0.params![DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey] == childURL2 }.first!
+        XCTAssertEqual(child2Pixel.params, [DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey: childURL2,
+                                            DataBrokerProtectionSharedPixels.Consts.calculatedOrphanedRecords: "2",
+                                            DataBrokerProtectionSharedPixels.Consts.childParentRecordDifference: "1",
+                                            DataBrokerProtectionSharedPixels.Consts.isAuthenticated: "true"])
+
+        let child3Pixel = firedPixels.filter { $0.params![DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey] == childURL3 }.first!
+        XCTAssertEqual(child3Pixel.params, [DataBrokerProtectionSharedPixels.Consts.dataBrokerParamKey: childURL3,
+                                            DataBrokerProtectionSharedPixels.Consts.calculatedOrphanedRecords: "1",
+                                            DataBrokerProtectionSharedPixels.Consts.childParentRecordDifference: "-1",
+                                            DataBrokerProtectionSharedPixels.Consts.isAuthenticated: "true"])
+    }
+
+    // MARK: - initialScanTotalDuration isFreeScan Tests
+
+    func testFireInitialScansTotalDurationPixel_whenFreeScan_pixelIncludesIsFreeScanTrue() {
+        repository.customInitialScansStartDate = Date().addingTimeInterval(-10)
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        sut.fireInitialScansTotalDurationPixel(numberOfProfileQueries: 3, isFreeScan: true)
+
+        guard let pixel = MockDataBrokerProtectionPixelsHandler.lastPixelsFired.last else {
+            XCTFail("A pixel should be fired")
+            return
+        }
+
+        XCTAssertEqual(pixel.params?[DataBrokerProtectionSharedPixels.Consts.isFreeScan], "true")
+        XCTAssertEqual(pixel.params?[DataBrokerProtectionSharedPixels.Consts.profileQueries], "3")
+    }
+
+    func testFireInitialScansTotalDurationPixel_whenPaidScan_pixelIncludesIsFreeScanFalse() {
+        repository.customInitialScansStartDate = Date().addingTimeInterval(-10)
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        sut.fireInitialScansTotalDurationPixel(numberOfProfileQueries: 5, isFreeScan: false)
+
+        guard let pixel = MockDataBrokerProtectionPixelsHandler.lastPixelsFired.last else {
+            XCTFail("A pixel should be fired")
+            return
+        }
+
+        XCTAssertEqual(pixel.params?[DataBrokerProtectionSharedPixels.Consts.isFreeScan], "false")
+        XCTAssertEqual(pixel.params?[DataBrokerProtectionSharedPixels.Consts.profileQueries], "5")
+    }
+
+    #if os(iOS)
+    func testTryToFireWeeklyPixels_includesBackgroundTaskSessionMetrics() {
+        // Create test events with different session types
+        let events = [
+            // Session 1: completed
+            BackgroundTaskEvent(sessionId: "session1", eventType: .started, timestamp: .daysAgo(3)),
+            BackgroundTaskEvent(sessionId: "session1", eventType: .completed, timestamp: .daysAgo(3), metadata: BackgroundTaskEvent.Metadata(durationInMs: 30000)),
+            // Session 2: terminated
+            BackgroundTaskEvent(sessionId: "session2", eventType: .started, timestamp: .daysAgo(2)),
+            BackgroundTaskEvent(sessionId: "session2", eventType: .terminated, timestamp: .daysAgo(2), metadata: BackgroundTaskEvent.Metadata(durationInMs: 45000)),
+            // Session 3: completed
+            BackgroundTaskEvent(sessionId: "session3", eventType: .started, timestamp: .daysAgo(1)),
+            BackgroundTaskEvent(sessionId: "session3", eventType: .completed, timestamp: .daysAgo(1), metadata: BackgroundTaskEvent.Metadata(durationInMs: 60000)),
+            // Session 4: completed (with invalid negative duration - should be ignored in min/max/median calculation)
+            BackgroundTaskEvent(sessionId: "session4", eventType: .started, timestamp: .daysAgo(4)),
+            BackgroundTaskEvent(sessionId: "session4", eventType: .completed, timestamp: .daysAgo(4), metadata: BackgroundTaskEvent.Metadata(durationInMs: -1000)),
+            // Session 5: terminated (with too long duration - should be ignored in min/max/median calculation)
+            BackgroundTaskEvent(sessionId: "session5", eventType: .started, timestamp: .daysAgo(5)),
+            BackgroundTaskEvent(sessionId: "session5", eventType: .terminated, timestamp: .daysAgo(5), metadata: BackgroundTaskEvent.Metadata(durationInMs: 90000000)),
+            // Session 6: completed
+            BackgroundTaskEvent(sessionId: "session6", eventType: .started, timestamp: .daysAgo(6)),
+            BackgroundTaskEvent(sessionId: "session6", eventType: .completed, timestamp: .daysAgo(6), metadata: BackgroundTaskEvent.Metadata(durationInMs: 15000)),
+            // Session 7: terminated (outside 7-day window  - should be ignored from all calculations)
+            BackgroundTaskEvent(sessionId: "session7", eventType: .started, timestamp: .daysAgo(20)),
+            BackgroundTaskEvent(sessionId: "session7", eventType: .terminated, timestamp: .daysAgo(20), metadata: BackgroundTaskEvent.Metadata(durationInMs: 50000)),
+            // Session 8: completed
+            BackgroundTaskEvent(sessionId: "session8", eventType: .started, timestamp: .daysAgo(2)),
+            BackgroundTaskEvent(sessionId: "session8", eventType: .completed, timestamp: .daysAgo(2), metadata: BackgroundTaskEvent.Metadata(durationInMs: 35000)),
+            // Session 9: orphaned (started but never completed/terminated)
+            BackgroundTaskEvent(sessionId: "session9", eventType: .started, timestamp: .daysAgo(3))
+        ]
+
+        database.backgroundTaskEventsToReturn = events
+        repository.customGetLatestWeeklyPixel = nil
+
+        let sut = DataBrokerProtectionEventPixels(database: database, repository: repository, handler: handler)
+
+        sut.tryToFireWeeklyPixels(isAuthenticated: true)
+
+        let sessionPixel = MockDataBrokerProtectionPixelsHandler.lastPixelsFired
+            .first { $0.name.contains("weekly-report_background-task_session") }
+        XCTAssertNotNil(sessionPixel)
+        XCTAssertEqual(sessionPixel?.params?["num_started"], "8")    // Sessions 1-6, 8, 9
+        XCTAssertEqual(sessionPixel?.params?["num_orphaned"], "1")   // Session 9
+        XCTAssertEqual(sessionPixel?.params?["num_completed"], "5")  // Sessions 1, 3, 4, 6, 8
+        XCTAssertEqual(sessionPixel?.params?["num_terminated"], "2") // Session 2, 5
+        XCTAssertEqual(sessionPixel?.params?["duration_min_ms"], "15000.0")
+        XCTAssertEqual(sessionPixel?.params?["duration_max_ms"], "60000.0")
+        XCTAssertEqual(sessionPixel?.params?["duration_median_ms"], "35000.0")
+    }
+    #endif
+
+}

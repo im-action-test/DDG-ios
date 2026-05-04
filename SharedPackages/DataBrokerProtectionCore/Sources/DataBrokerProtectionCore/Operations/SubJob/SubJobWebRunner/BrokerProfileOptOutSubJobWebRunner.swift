@@ -1,0 +1,226 @@
+//
+//  BrokerProfileOptOutSubJobWebRunner.swift
+//
+//  Copyright © 2023 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import Foundation
+import WebKit
+import PrivacyConfig
+import BrowserServicesKit
+import UserScript
+import os.log
+import Common
+
+public typealias BrokerProfileOptOutSubJobWebProtocol = BrokerProfileOptOutSubJobWebRunning & BrokerProfileOptOutSubJobWebTesting
+
+public protocol BrokerProfileOptOutSubJobWebRunning {
+    func optOut(profileQuery: BrokerProfileQueryData,
+                extractedProfile: ExtractedProfile,
+                showWebView: Bool,
+                shouldRunNextStep: @escaping () -> Bool) async throws
+}
+
+public protocol BrokerProfileOptOutSubJobWebTesting {
+    func run(inputValue: ExtractedProfile,
+             webViewHandler: WebViewHandler?,
+             actionsHandler: ActionsHandler?,
+             showWebView: Bool) async throws
+}
+
+extension BrokerProfileOptOutSubJobWebTesting {
+    public func run(inputValue: ExtractedProfile,
+                    webViewHandler: WebViewHandler? = nil,
+                    actionsHandler: ActionsHandler? = nil,
+                    showWebView: Bool = false) async throws {
+        try await run(inputValue: inputValue, webViewHandler: webViewHandler, actionsHandler: actionsHandler, showWebView: showWebView)
+    }
+}
+
+public final class BrokerProfileOptOutSubJobWebRunner: SubJobWebRunning, BrokerProfileOptOutSubJobWebProtocol {
+    public enum ActionsHandlerMode {
+        case testing // for injecting custom actionsHandler
+        case optOut // for opt-out operations (action list may be modified depending on featureFlagger.isEmailConfirmationDecouplingFeatureOn)
+        case emailConfirmation(URL) // for email confirmation operations
+    }
+
+    public typealias ReturnValue = Void
+    public typealias InputValue = ExtractedProfile
+
+    public let privacyConfig: PrivacyConfigurationManaging
+    public let prefs: ContentScopeProperties
+    public let context: SubJobContextProviding
+    public let emailConfirmationDataService: EmailConfirmationDataServiceProvider
+    public let captchaService: CaptchaServiceProtocol
+    public let cookieHandler: CookieHandler
+    public let stageCalculator: StageDurationCalculator
+    public var webViewHandler: WebViewHandler?
+    public var actionsHandler: ActionsHandler?
+    public var continuation: CheckedContinuation<Void, Error>?
+    public var extractedProfile: ExtractedProfile?
+    private let operationAwaitTime: TimeInterval
+    public let shouldRunNextStep: () -> Bool
+    public var clickAwaitTime: TimeInterval {
+        executionConfig.clickAwaitTimeForOptOut
+    }
+    public let pixelHandler: EventMapping<DataBrokerProtectionSharedPixels>
+    public var postLoadingSiteStartTime: Date?
+    public let executionConfig: BrokerJobExecutionConfig
+    public let featureFlagger: DBPFeatureFlagging
+    public let applicationNameForUserAgent: String?
+    public var fetchedEmail: String?
+    public var emailData: ExtractedEmailData = [:]
+    private let actionsHandlerMode: ActionsHandlerMode
+
+    public var retriesCountOnError: Int = 0
+
+    public init(privacyConfig: PrivacyConfigurationManaging,
+                prefs: ContentScopeProperties,
+                context: SubJobContextProviding,
+                emailConfirmationDataService: EmailConfirmationDataServiceProvider,
+                captchaService: CaptchaServiceProtocol,
+                featureFlagger: DBPFeatureFlagging,
+                applicationNameForUserAgent: String?,
+                cookieHandler: CookieHandler = BrokerCookieHandler(),
+                operationAwaitTime: TimeInterval = 3,
+                stageCalculator: StageDurationCalculator,
+                pixelHandler: EventMapping<DataBrokerProtectionSharedPixels>,
+                executionConfig: BrokerJobExecutionConfig,
+                actionsHandlerMode: ActionsHandlerMode,
+                shouldRunNextStep: @escaping () -> Bool) {
+        self.privacyConfig = privacyConfig
+        self.prefs = prefs
+        self.context = context
+        self.emailConfirmationDataService = emailConfirmationDataService
+        self.captchaService = captchaService
+        self.operationAwaitTime = operationAwaitTime
+        self.stageCalculator = stageCalculator
+        self.shouldRunNextStep = shouldRunNextStep
+        self.cookieHandler = cookieHandler
+        self.pixelHandler = pixelHandler
+        self.executionConfig = executionConfig
+        self.actionsHandlerMode = actionsHandlerMode
+        self.featureFlagger = featureFlagger
+        self.applicationNameForUserAgent = applicationNameForUserAgent
+    }
+
+    public func optOut(profileQuery: BrokerProfileQueryData,
+                       extractedProfile: ExtractedProfile,
+                       showWebView: Bool,
+                       shouldRunNextStep: @escaping () -> Bool) async throws {
+        try await run(inputValue: extractedProfile, showWebView: showWebView)
+    }
+
+    @MainActor
+    public func run(inputValue: ExtractedProfile,
+                    webViewHandler: WebViewHandler?,
+                    actionsHandler: ActionsHandler?,
+                    showWebView: Bool) async throws {
+        var task: Task<Void, Never>?
+
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                self.extractedProfile = inputValue.merge(with: context.profileQuery)
+                self.continuation = continuation
+
+                guard self.shouldRunNextStep() else {
+                    failed(with: DataBrokerProtectionError.cancelled)
+                    return
+                }
+
+                task = Task {
+                    do {
+                        try await initialize(handler: webViewHandler,
+                                         isFakeBroker: context.dataBroker.isFakeBroker,
+                                         showWebView: showWebView)
+                    } catch {
+                        failed(with: error)
+                        return
+                    }
+
+                    if let optOutStep = context.dataBroker.optOutStep() {
+                        switch actionsHandlerMode {
+                        case .testing:
+                            if let actionsHandler {
+                                self.actionsHandler = actionsHandler
+                            } else {
+                                assertionFailure("Missing ActionsHandler")
+                            }
+                        case .optOut:
+                            if actionsHandler != nil {
+                                assertionFailure("Use .testing actionsHandlerMode instead")
+                            }
+                            self.actionsHandler = ActionsHandler.forOptOut(optOutStep, haltsAtEmailConfirmation: featureFlagger.isEmailConfirmationDecouplingFeatureOn)
+                        case .emailConfirmation(let url):
+                            if actionsHandler != nil {
+                                assertionFailure("Use .testing actionsHandlerMode instead")
+                            }
+                            self.actionsHandler = ActionsHandler.forEmailConfirmationContinuation(optOutStep, confirmationURL: url)
+                        }
+
+                        if self.shouldRunNextStep() {
+                            await executeNextStep()
+                        } else {
+                            failed(with: DataBrokerProtectionError.cancelled)
+                        }
+
+                    } else {
+                        // If we try to run an optout on a broker without an optout step, we throw.
+                        failed(with: DataBrokerProtectionError.noOptOutStep)
+                    }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in
+                task?.cancel()
+            }
+        }
+    }
+
+    public func extractedProfiles(profiles: [ExtractedProfile], meta: [String: Any]?) async {
+        // No - op
+    }
+
+    public func executeNextStep() async {
+        resetRetriesCount()
+        Logger.action.debug(loggerContext(), message: "Waiting \(self.operationAwaitTime) seconds...")
+        recordDebugEvent(kind: .wait,
+                         actionType: actionsHandler?.currentAction()?.actionType,
+                         details: "Waiting \(operationAwaitTime)s (between actions)")
+        try? await Task.sleep(nanoseconds: UInt64(operationAwaitTime) * 1_000_000_000)
+
+        let shouldContinue = self.shouldRunNextStep()
+        if let action = actionsHandler?.nextAction(), shouldContinue {
+            stageCalculator.setLastAction(action)
+            Logger.action.debug(loggerContext(for: action), message: "Next action")
+            await runNextAction(action)
+        } else {
+            Logger.action.debug(loggerContext(), message: "Releasing the web view")
+            await webViewHandler?.finish() // If we executed all steps we release the web view
+
+            if shouldContinue {
+                Logger.action.debug(loggerContext(), message: "Job completed")
+                complete(())
+            } else {
+                Logger.action.debug(loggerContext(), message: "Job canceled")
+                failed(with: DataBrokerProtectionError.cancelled)
+            }
+        }
+    }
+
+    private func loggerContext(for action: Action? = nil) -> PIRActionLogContext {
+        .init(stepType: .optOut, broker: context.dataBroker, attemptId: stageCalculator.attemptId, action: action)
+    }
+}

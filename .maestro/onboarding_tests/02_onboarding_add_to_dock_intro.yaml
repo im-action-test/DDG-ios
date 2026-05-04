@@ -1,0 +1,58 @@
+appId: com.duckduckgo.mobile.ios
+tags:
+    - iphone
+    - onboarding
+
+---
+
+# Set up
+- runFlow:
+    file: ../shared/setup.yaml
+    env:
+        ONBOARDING_COMPLETED: "false"
+        APP_VARIANT: "mk"
+
+# Get past linear onboarding screens
+- runFlow:
+    file: shared/onboarding.yaml
+
+# Handle Search Suggestions
+- assertVisible: "Ready to get started?\nTry a search!"
+- assertVisible: "Surprise Me!"
+- tapOn: "Surprise Me!"
+
+# Handle First Dax Dialog
+- assertVisible: "That’s DuckDuckGo Search. Private. Fast. Fewer ads."
+- assertVisible: "Got It!"
+- tapOn: "Got It!"
+
+# Handle Site Suggestions
+- assertVisible: "Next, try visiting a site!"
+- assertVisible: "Surprise Me!"
+- tapOn: "Surprise Me!"
+
+# Handle Privacy Dashboard
+- assertVisible: "Got It!"
+- tapOn:
+    id: "privacy-icon-shield.button"
+- assertVisible:
+    text: "View Tracker Companies"
+- assertVisible:
+    text: "Done"
+- tapOn: "Done"
+
+# Handle Fire Message
+- assertVisible: "Got It!"
+- tapOn: "Got It!"
+- assertVisible: "Instantly clear your browsing activity with the Fire Button.\n\nGive it a try! 🔥"
+
+# Handle Fire Button
+- runFlow:
+    file: ../shared/use_firebutton.yaml
+
+# Handle End of Journey Dialog
+- assertVisible: "You’ve got this!"
+- assertVisible: "High five!"
+- tapOn: "High five!"
+
+

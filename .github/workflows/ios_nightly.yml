@@ -1,0 +1,119 @@
+name: iOS - Nightly Tests
+
+defaults:
+  run:
+    working-directory: iOS
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *' # Run at 2 AM UTC
+
+jobs:
+  atb-ui-tests:
+    name: ATB UI Tests
+    runs-on: macos-26-xlarge
+    timeout-minutes: 30
+
+    steps:
+    - name: Check out the code
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Set cache key hash
+      run: |
+         has_only_tags=$(jq '[ .pins[].state | has("version") ] | all' DuckDuckGo-iOS.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)
+         if [[ "$has_only_tags" == "true" ]]; then
+           echo "cache_key_hash=${{ hashFiles('iOS/DuckDuckGo-iOS.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}" >> $GITHUB_ENV
+         else
+           echo "Package.resolved contains dependencies specified by branch or commit, skipping cache."
+         fi
+
+    - name: Cache SPM
+      if: env.cache_key_hash
+      uses: actions/cache@v4
+      with:
+        path: iOS/DerivedData/SourcePackages
+        key: ${{ runner.os }}-ios-${{ env.cache_key_hash }}
+        restore-keys: |
+          ${{ runner.os }}-ios-
+
+    - name: Select Xcode
+      uses: ./.github/actions/select-xcode-version
+
+    - name: Select iOS Simulator
+      id: select-simulator
+      uses: ./.github/actions/select-ios-simulator
+      with:
+        preferred-versions: "26.4"
+
+    - name: Boot iOS Simulator for log collection
+      id: boot-simulator
+      uses: ./.github/actions/ios-simulator-logs
+      with:
+        action: boot
+        device-name: iPhone 17
+        ios-version: ${{ steps.select-simulator.outputs.ios-version }}
+
+    - name: Build and test
+      id: run-unit-tests
+      run: |
+        set -o pipefail && xcodebuild test \
+          -scheme "iOS ATB UI Tests" \
+          -destination "platform=iOS Simulator,id=${{ steps.boot-simulator.outputs.device-id }}" \
+          -derivedDataPath "DerivedData" \
+          -skipPackagePluginValidation \
+          -skipMacroValidation \
+          OTHER_CODE_SIGN_FLAGS=--timestamp=none \
+          | tee xcodebuild.log \
+          | xcbeautify --report junit --report-path . --junit-report-filename unittests.xml
+
+    - name: Collect simulator logs
+      id: collect-logs
+      if: always()
+      uses: ./.github/actions/ios-simulator-logs
+      with:
+        action: collect
+        device-id: ${{ steps.boot-simulator.outputs.device-id }}
+
+    - name: Upload logs if workflow failed
+      uses: actions/upload-artifact@v4
+      if: failure() || cancelled()
+      with:
+        name: ATBBuildLogs
+        path: |
+          iOS/xcodebuild.log
+          iOS/DerivedData/Logs/Test/*.xcresult
+          ${{ steps.collect-logs.outputs.log-path }}
+        retention-days: 7
+
+    - name: Upload crash reports
+      uses: actions/upload-artifact@v4
+      if: failure() || cancelled()
+      with:
+        name: ios-nightly-crash-reports
+        path: |
+          ~/Library/Logs/DiagnosticReports/*.ips
+          ~/Library/Logs/DiagnosticReports/*.crash
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Process test results
+      if: always()
+      uses: ./.github/actions/process-test-results
+      with:
+        working-directory: iOS
+        junit-path: unittests.xml
+        log-path: xcodebuild.log
+        title: iOS Nightly
+        test-outcome: ${{ steps.run-unit-tests.outcome }}
+
+    - name: Publish unit tests report
+      uses: mikepenz/action-junit-report@v3
+      if: always()
+      with:
+        report_paths: iOS/unittests.xml
+        check_retries: true
+        job_summary: 'false'
+

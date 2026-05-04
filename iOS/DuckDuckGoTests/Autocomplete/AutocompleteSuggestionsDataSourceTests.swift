@@ -1,0 +1,141 @@
+//
+//  AutocompleteSuggestionsDataSourceTests.swift
+//  DuckDuckGo
+//
+//  Copyright © 2024 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import Foundation
+
+import XCTest
+import Persistence
+import CoreData
+import Bookmarks
+import PrivacyConfig
+import Suggestions
+import History
+
+@testable import Core
+@testable import DuckDuckGo
+@testable import PersistenceTestingUtils
+
+final class AutocompleteSuggestionsDataSourceTests: XCTestCase {
+
+    var db: CoreDataDatabase!
+    var mainContext: NSManagedObjectContext!
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+
+        let model = CoreDataDatabase.loadModel(from: Bookmarks.bundle, named: "BookmarksModel")!
+
+        db = CoreDataDatabase(name: "Test", containerLocation: tempDBDir(), model: model)
+        db.loadStore()
+
+        self.mainContext = db.makeContext(concurrencyType: .mainQueueConcurrencyType, name: "TestContext")
+        BasicBookmarksStructure.populateDB(context: mainContext)
+    }
+
+    override func tearDown() {
+        try? db.tearDown(deleteStores: true)
+    }
+
+    @MainActor
+    func testDataSourceReturnsHistory() {
+        let dataSource = makeDataSource()
+        XCTAssertEqual(dataSource.history(for: MockSuggestionLoading()).count, 2)
+    }
+
+    @MainActor
+    func testDataSourceProvidesOpenTabsExcludingCurrent() {
+        let dataSource = makeDataSource()
+
+        // Current tab is the last one added, which has two tabs with the same URL, so only 2 of the 4 will be returned.
+        let result = dataSource.openTabs(for: MockSuggestionLoading())
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual("Different", result[0].title)
+        XCTAssertEqual("DDG", result[1].title)
+    }
+
+    @MainActor
+    func testDataSourceReturnsBookmarks() {
+        let dataSource = makeDataSource()
+        let bookmarks = dataSource.bookmarks(for: MockSuggestionLoading())
+        XCTAssertEqual(bookmarks.count, 5)
+    }
+
+    @MainActor
+    func testDataSourceReturnsEmptyInternalPages() {
+        let dataSource = makeDataSource()
+        XCTAssertTrue(dataSource.internalPages(for: MockSuggestionLoading()).isEmpty)
+    }
+
+    @MainActor
+    private func makeDataSource() -> AutocompleteSuggestionsDataSource {
+
+        var mockHistoryCoordinator = NullHistoryCoordinator()
+        mockHistoryCoordinator.history = [
+            makeHistory(.appStore, "App Store"),
+            makeHistory(.mac, "DDG for macOS")
+        ]
+        // mockHistoryCoordinator.
+
+        return AutocompleteSuggestionsDataSource(
+            historyManager: MockHistoryManager(historyCoordinator: mockHistoryCoordinator, isEnabledByUser: true, historyFeatureEnabled: true),
+            bookmarksDatabase: db,
+            featureFlagger: MockFeatureFlagger(),
+            tabsModel: makeTabsModel()) { _, completion in
+                completion("[]".data(using: .utf8), nil)
+        }
+    }
+
+    private func makeTabsModel() -> TabsModel {
+        let model = TabsModel(desktop: false)
+        model.insert(tab: Tab(uid: "uid1", link: Link(title: "Example", url: URL(string: "https://example.com")!)), placement: .atEnd, selectNewTab: true)
+        model.insert(tab: Tab(uid: "uid2", link: Link(title: "Different", url: URL(string: "https://different.com")!)), placement: .atEnd, selectNewTab: true)
+        model.insert(tab: Tab(uid: "uid3", link: Link(title: "DDG", url: URL(string: "https://duckduckgo.com")!)), placement: .atEnd, selectNewTab: true)
+        model.insert(tab: Tab(uid: "uid4", link: Link(title: "Example", url: URL(string: "https://example.com")!)), placement: .atEnd, selectNewTab: true)
+        return model
+    }
+
+    private func makeHistory(_ url: URL, _ title: String) -> HistoryEntry {
+        .init(identifier: UUID(),
+              url: url,
+              title: title,
+              failedToLoad: false,
+              numberOfTotalVisits: 0,
+              lastVisit: Date(),
+              visits: .init(),
+              numberOfTrackersBlocked: 0,
+              blockedTrackingEntities: .init(),
+              trackersFound: false)
+    }
+
+}
+
+final class MockSuggestionLoading: SuggestionLoading {
+    func getSuggestions(query: String, usingDataSource dataSource: any SuggestionLoadingDataSource, completion: @escaping (SuggestionResult?, (any Error)?) -> Void) {
+    }
+}
+
+private extension MenuBookmarksViewModel {
+
+    convenience init(bookmarksDatabase: CoreDataDatabase) {
+        self.init(bookmarksDatabase: bookmarksDatabase,
+                  errorEvents: .init(mapping: { event, _, _, _ in
+            XCTFail("Unexpected error: \(event)")
+        }))
+    }
+}

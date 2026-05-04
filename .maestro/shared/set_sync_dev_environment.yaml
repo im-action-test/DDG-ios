@@ -1,0 +1,21 @@
+# cset_sync_dev_environment.yaml
+
+appId: com.duckduckgo.mobile.ios
+---
+
+#Open Debug Menu
+- runFlow:
+    file: ./open_debug_menu.yaml
+
+- scrollUntilVisible:
+    element: Sync
+    direction: DOWN
+    centerElement: true
+- tapOn: Sync
+- scrollUntilVisible:
+    element: Production
+    direction: DOWN
+    centerElement: false
+- tapOn: Production
+- tapOn: Debug
+- tapOn: Settings

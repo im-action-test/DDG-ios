@@ -1,0 +1,347 @@
+//
+//  ImageSegmentedPickerView.swift
+//
+//  Copyright © 2025 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+#if os(iOS)
+
+import SwiftUI
+import DesignResourcesKit
+
+// MARK: - Configuration
+
+/// Configuration options for customizing the appearance of an `ImageSegmentedPickerView`.
+///
+/// Use this structure to define the visual properties of the segmented picker,
+/// including fonts, colors, and backgrounds.
+public struct ImageSegmentedPickerConfiguration {
+    public var font: Font
+    public var itemContentSpacing: CGFloat
+    public var selectedTextColor: Color
+    public var unselectedTextColor: Color
+    public var backgroundColor: Color
+    public var selectedBackgroundColor: Color
+    public var outerHeight: CGFloat
+    public var innerHeight: CGFloat
+    public var innerHorizontalPadding: CGFloat
+
+    /// Creates a new configuration for the image segmented picker.
+    ///
+    /// - Parameters:
+    ///   - font: The font for text labels. Defaults to system font with size 16 and medium weight.
+    ///   - selectedTextColor: The text color for selected items. Defaults to primary text color.
+    ///   - unselectedTextColor: The text color for unselected items. Defaults to primary text color.
+    ///   - backgroundColor: The picker's background color. Defaults to raised backdrop color.
+    ///   - selectedBackgroundColor: The selected indicator's background color. Defaults to raised fill primary color.
+    ///   - outerHeight: The total height of the picker. Defaults to 38.
+    ///   - innerHeight: The height of the selected indicator pill. Defaults to 34.
+    ///   - innerHorizontalPadding: The horizontal padding between the outer edge and the pill. Defaults to 2.
+    public init(
+        font: Font = .system(size: 14, weight: .medium), /// Color not specified in the design system
+        itemContentSpacing: CGFloat = 6,
+        selectedTextColor: Color = .init(designSystemColor: .textPrimary),
+        unselectedTextColor: Color = .init(designSystemColor: .textPrimary),
+        backgroundColor: Color = .init(designSystemColor: .controlsRaisedBackdrop),
+        selectedBackgroundColor: Color = .init(designSystemColor: .controlsRaisedFillPrimary),
+        outerHeight: CGFloat = 38,
+        innerHeight: CGFloat = 34,
+        innerHorizontalPadding: CGFloat = 2
+    ) {
+        self.font = font
+        self.itemContentSpacing = itemContentSpacing
+        self.selectedTextColor = selectedTextColor
+        self.unselectedTextColor = unselectedTextColor
+        self.backgroundColor = backgroundColor
+        self.selectedBackgroundColor = selectedBackgroundColor
+        self.outerHeight = outerHeight
+        self.innerHeight = innerHeight
+        self.innerHorizontalPadding = innerHorizontalPadding
+    }
+}
+
+// MARK: - ViewModel
+
+/// ViewModel for managing the state and configuration of an ImageSegmentedPickerView.
+public class ImageSegmentedPickerViewModel: ObservableObject {
+    let items: [ImageSegmentedPickerItem]
+    @Published public var selectedItem: ImageSegmentedPickerItem
+    let configuration: ImageSegmentedPickerConfiguration
+    @Published public var scrollProgress: CGFloat?
+    /// If true, `scrollProgress` is expected to be driven by an external ScrollView and we avoid implicit animations.
+    /// If false, we animate transitions when `scrollProgress` changes (e.g., programmatic selection changes).
+    @Published public var isScrollProgressDriven: Bool
+
+    /// Creates a new ViewModel for the image segmented picker.
+    ///
+    /// - Parameters:
+    ///   - items: An array of items to display in the picker.
+    ///   - selectedItem: The initially selected item.
+    ///   - configuration: The configuration for customizing the picker's appearance.
+    ///   - scrollProgress: Optional scroll progress (0-1) to animate the toggle indicator.
+    public init(
+        items: [ImageSegmentedPickerItem],
+        selectedItem: ImageSegmentedPickerItem,
+        configuration: ImageSegmentedPickerConfiguration = ImageSegmentedPickerConfiguration(),
+        scrollProgress: CGFloat? = nil,
+        isScrollProgressDriven: Bool = true
+    ) {
+        self.items = items
+        self.selectedItem = selectedItem
+        self.configuration = configuration
+        self.scrollProgress = scrollProgress
+        self.isScrollProgressDriven = isScrollProgressDriven
+    }
+
+    /// Updates the selected item.
+    ///
+    /// - Parameter item: The item to select.
+    public func selectItem(_ item: ImageSegmentedPickerItem) {
+        selectedItem = item
+    }
+
+    /// Updates the scroll progress.
+    ///
+    /// - Parameter progress: The scroll progress (0-1).
+    public func updateScrollProgress(_ progress: CGFloat?) {
+        scrollProgress = progress
+    }
+}
+
+// MARK: - Main View
+
+/// A segmented picker view that displays items with images and text labels.
+///
+/// This view creates a horizontal segmented control where each segment contains
+/// an image and text. The selected segment is highlighted with a sliding background
+/// indicator that animates between selections.
+///
+/// Example usage:
+/// ```swift
+/// let items = [
+///     ImageSegmentedPickerItem(
+///         text: "List",
+///         selectedImage: Image(systemName: "list.bullet"),
+///         unselectedImage: Image(systemName: "list.bullet")
+///     ),
+///     ImageSegmentedPickerItem(
+///         text: "Grid",
+///         selectedImage: Image(systemName: "square.grid.2x2.fill"),
+///         unselectedImage: Image(systemName: "square.grid.2x2")
+///     )
+/// ]
+///
+/// let viewModel = ImageSegmentedPickerViewModel(
+///     items: items,
+///     selectedItem: items[0]
+/// )
+///
+/// ImageSegmentedPickerView(viewModel: viewModel)
+/// ```
+public struct ImageSegmentedPickerView: View {
+    @ObservedObject private var viewModel: ImageSegmentedPickerViewModel
+    @State private var currentOffset: CGFloat = 0
+
+    /// Creates a new image segmented picker view with a ViewModel.
+    ///
+    /// - Parameter viewModel: The ViewModel managing the picker's state and configuration.
+    public init(viewModel: ImageSegmentedPickerViewModel) {
+        self.viewModel = viewModel
+    }
+
+    public var body: some View {
+        let config = viewModel.configuration
+        GeometryReader { geo in
+            let segmentWidth = geo.size.width / CGFloat(viewModel.items.count)
+            let pillWidth = segmentWidth - 2 * config.innerHorizontalPadding
+            ZStack {
+                RoundedRectangle(cornerRadius: config.outerHeight / 2)
+                    .fill(config.backgroundColor)
+
+                RoundedRectangle(cornerRadius: config.innerHeight / 2)
+                    .fill(config.selectedBackgroundColor)
+                    .frame(width: pillWidth, height: config.innerHeight)
+                    .offset(x: currentOffset)
+                    .shadow(color: Color(designSystemColor: .shadowSecondary), radius: 4, x: 0, y: 4)
+                    .shadow(color: Color(designSystemColor: .shadowSecondary), radius: 2, x: 0, y: 1)
+
+                HStack(spacing: 0) {
+                    ForEach(Array(viewModel.items.enumerated()), id: \.element.id) { index, item in
+                        let isInSelectedArea = isItemInSelectedArea(itemIndex: index, geometry: geo, currentOffset: currentOffset)
+
+                        CustomPickerButton(
+                            item: item,
+                            isSelected: isInSelectedArea,
+                            configuration: config) {
+                            viewModel.selectItem(item)
+                        }
+                        .frame(width: segmentWidth)
+                    }
+                }
+            }
+            .onAppear {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    currentOffset = calculateCurrentOffset(geometry: geo)
+                }
+            }
+            // Selection changes are reflected via scrollProgress when provided by the host.
+            .onChange(of: viewModel.scrollProgress) { _ in
+                guard viewModel.scrollProgress != nil else { return }
+                if viewModel.isScrollProgressDriven {
+                    currentOffset = calculateCurrentOffset(geometry: geo)
+                } else {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.9, blendDuration: 0.1)) {
+                        currentOffset = calculateCurrentOffset(geometry: geo)
+                    }
+                }
+            }
+        }
+        .frame(height: config.outerHeight)
+    }
+
+    private func calculateCurrentOffset(geometry: GeometryProxy) -> CGFloat {
+        if let progress = viewModel.scrollProgress {
+            return offsetForScrollProgress(progress, geometry: geometry)
+        } else {
+            return selectedOffset(geometry: geometry)
+        }
+    }
+
+    private func offsetForScrollProgress(_ progress: CGFloat, geometry: GeometryProxy) -> CGFloat {
+        guard viewModel.items.count >= 2 else { return 0 }
+
+        let firstOffset = offsetForItemIndex(0, geometry: geometry)
+        let secondOffset = offsetForItemIndex(1, geometry: geometry)
+
+        // Interpolate between first and second positions based on scroll progress
+        return firstOffset + (secondOffset - firstOffset) * progress
+    }
+
+    private func offsetForItemIndex(_ index: Int, geometry: GeometryProxy) -> CGFloat {
+        let buttonWidth = geometry.size.width / CGFloat(viewModel.items.count)
+        return CGFloat(index) * buttonWidth - (geometry.size.width / 2) + (buttonWidth / 2)
+    }
+
+    private func selectedOffset(geometry: GeometryProxy) -> CGFloat {
+        guard let selectedIndex = viewModel.items.firstIndex(where: { $0.id == viewModel.selectedItem.id }) else {
+            return 0
+        }
+
+        return offsetForItemIndex(selectedIndex, geometry: geometry)
+    }
+
+    private func isItemInSelectedArea(itemIndex: Int, geometry: GeometryProxy, currentOffset: CGFloat) -> Bool {
+        let buttonWidth = geometry.size.width / CGFloat(viewModel.items.count)
+        let selectorWidth = buttonWidth - (viewModel.configuration.innerHorizontalPadding * 2)
+
+        let selectorCenter = currentOffset + (geometry.size.width / 2)
+        let selectorLeft = selectorCenter - (selectorWidth / 2)
+        let selectorRight = selectorCenter + (selectorWidth / 2)
+
+        let itemLeft = CGFloat(itemIndex) * buttonWidth
+        let itemRight = itemLeft + buttonWidth
+
+        // Calculate the overlap between selector and item
+        let overlapLeft = max(selectorLeft, itemLeft)
+        let overlapRight = min(selectorRight, itemRight)
+        let overlapWidth = max(0, overlapRight - overlapLeft)
+
+        // Only consider item selected if overlay is more than 50% on top of it
+        let overlapPercentage = overlapWidth / selectorWidth
+        return overlapPercentage > 0.5
+    }
+}
+
+// MARK: - Private Components
+
+private struct CustomPickerButton: View {
+    let item: ImageSegmentedPickerItem
+    let isSelected: Bool
+    let configuration: ImageSegmentedPickerConfiguration
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: configuration.itemContentSpacing) {
+                (isSelected ? item.selectedCustomView : item.unselectedCustomView)
+                    .font(configuration.font)
+                    .foregroundColor(isSelected ? configuration.selectedTextColor : configuration.unselectedTextColor)
+
+                if let text = item.text {
+                    Text(text)
+                        .font(configuration.font)
+                        .foregroundColor(isSelected ? configuration.selectedTextColor : configuration.unselectedTextColor)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Data Model
+
+/// Represents an item in an `ImageSegmentedPickerView`.
+///
+/// Each item contains text and images for both selected and unselected states.
+/// The picker automatically switches between these images based on the selection state.
+///
+/// Alternatively, provide custom views via ``init(text:selectedCustomView:unselectedCustomView:)``
+/// to render arbitrary SwiftUI content instead of plain images.
+public struct ImageSegmentedPickerItem: Identifiable, Hashable {
+    public let id = UUID()
+    public let text: String?
+    public let selectedCustomView: AnyView
+    public let unselectedCustomView: AnyView
+
+    /// Creates a new picker item with images.
+    ///
+    /// - Parameters:
+    ///   - text: The text label for the item.
+    ///   - selectedImage: The image to display when selected.
+    ///   - unselectedImage: The image to display when not selected.
+    public init(text: String?, selectedImage: Image, unselectedImage: Image) {
+        self.text = text
+        self.selectedCustomView = AnyView(selectedImage)
+        self.unselectedCustomView = AnyView(unselectedImage)
+    }
+
+    /// Creates a new picker item with custom overlay views.
+    ///
+    /// - Parameters:
+    ///   - text: The text label for the item.
+    ///   - selectedCustomView: The view to display when selected.
+    ///   - unselectedCustomView: The view to display when not selected.
+    public init(text: String?,
+                selectedCustomView: AnyView,
+                unselectedCustomView: AnyView) {
+        self.text = text
+        self.selectedCustomView = selectedCustomView
+        self.unselectedCustomView = unselectedCustomView
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(text)
+    }
+
+    public static func == (lhs: ImageSegmentedPickerItem, rhs: ImageSegmentedPickerItem) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+#endif

@@ -1,0 +1,188 @@
+name: macOS - Create DMG Variant
+
+defaults:
+  run:
+    working-directory: macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      atb-variant:
+        description: "ATB variant. Used for measuring attribution and retention."
+        required: false
+        type: string
+      origin-variant:
+        description: "Origin variant. Used for measuring attribution only."
+        required: false
+        type: string
+      dmg-url:
+        description: "Custom DMG URL to use instead of the release DMG."
+        required: false
+        type: string
+      dry-run:
+        description: "When true, skip publishing to S3."
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      atb-variant:
+        description: "ATB variant. Used for measuring attribution and retention. Passed by the caller workflow."
+        required: false
+        type: string
+      origin-variant:
+        description: "Origin variant. Used for measuring attribution only. Passed by the caller workflow."
+        required: false
+        type: string
+      dmg-url:
+        description: "Custom DMG URL to use instead of the release DMG."
+        required: false
+        type: string
+      dry-run:
+        description: "When true, skip publishing to S3."
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      AWS_ACCESS_KEY_ID_RELEASE_S3:
+        required: true
+      AWS_SECRET_ACCESS_KEY_RELEASE_S3:
+        required: true
+
+jobs:
+
+  create-dmg-variant:
+
+    name: Create DMG Variant
+
+    env:
+      ATB_VARIANT_NAME: ${{ inputs.atb-variant || github.event.inputs.atb-variant }}
+      ORIGIN_VARIANT_NAME: ${{ inputs.origin-variant || github.event.inputs.origin-variant }}
+      DMG_URL: ${{ inputs.dmg-url || github.event.inputs.dmg-url }}
+      DRY_RUN: ${{ inputs.dry-run || github.event.inputs.dry-run }}
+
+    runs-on: macos-26
+    timeout-minutes: 15
+
+    steps:
+
+    - name: Check out the code
+      uses: actions/checkout@v6
+      with:
+        sparse-checkout: |
+          .github
+          macOS/scripts
+
+    - name: Download DMG artifact
+      id: download-dmg-artifact
+      if: ${{ !env.DMG_URL }}
+      continue-on-error: true
+      uses: actions/download-artifact@v4
+      with:
+        name: duckduckgo-dmg
+        path: ${{ github.workspace }}/macOS
+
+    - name: Download release app
+      # Download the release app only if no custom URL and download-dmg-artifact fails
+      if: ${{ !env.DMG_URL && steps.download-dmg-artifact.outcome == 'failure' }}
+      run: |
+        curl -fLSs "${{ vars.RELEASE_DMG_URL }}" --output duckduckgo.dmg
+
+    - name: Download custom DMG
+      if: ${{ env.DMG_URL }}
+      run: |
+        curl -fLSs "${{ env.DMG_URL }}" --output duckduckgo.dmg
+
+    - name: Extract App from DMG
+      id: extract-app-from-dmg
+      run: |
+          hdiutil attach duckduckgo.dmg -mountpoint vanilla
+          mkdir -p dmg
+          app_path="$(find vanilla -maxdepth 1 -name 'DuckDuckGo*.app' | head -1)"
+          if [ -z "$app_path" ]; then
+            echo "No .app found in DMG"
+            exit 1
+          fi
+          app_name="$(basename "$app_path")"
+          echo "app-name=$app_name" >> "$GITHUB_OUTPUT"
+          cp -R "$app_path" "dmg/$app_name"
+          hdiutil detach vanilla
+          rm -f duckduckgo.dmg
+
+    - name: Install create-dmg
+      run: brew install create-dmg
+
+    - name: Set variant xattrs
+      working-directory: ${{ github.workspace }}/macOS/dmg
+      env:
+        APP_NAME: ${{ steps.extract-app-from-dmg.outputs.app-name }}
+      run: |
+        if [ -n "$ATB_VARIANT_NAME" ]; then
+          xattr -w com.duckduckgo.variant "$ATB_VARIANT_NAME" "$APP_NAME"
+        fi
+        if [ -n "$ORIGIN_VARIANT_NAME" ]; then
+          xattr -w com.duckduckgo.origin "$ORIGIN_VARIANT_NAME" "$APP_NAME"
+        fi
+        echo "=== Verifying xattrs ==="
+        xattr -l "$APP_NAME"
+        echo "=== Verifying code signature is still valid ==="
+        codesign --verify --deep --strict "$APP_NAME"
+
+    - name: Create variant DMG
+      env:
+        GH_TOKEN: ${{ github.token }}
+        APP_NAME: ${{ steps.extract-app-from-dmg.outputs.app-name }}
+      run: |
+        retries=3
+
+        while [[ $retries -gt 0 ]]; do
+          # Using APFS filesystem as per https://github.com/actions/runner-images/issues/7522#issuecomment-2299918092
+          if create-dmg --volname "DuckDuckGo" \
+            --volicon "scripts/assets/dmg-release.icns" \
+            --filesystem APFS \
+            --icon "$APP_NAME" 140 160 \
+            --background "scripts/assets/dmg-background.png" \
+            --window-size 600 400 \
+            --icon-size 120 \
+            --app-drop-link 430 160 "duckduckgo.dmg" \
+            "dmg"
+          then
+            break
+          fi
+          retries=$((retries-1))
+        done
+
+    - name: Set variant name
+      id: set-variant-name
+      run: |
+        if [ -z "$ORIGIN_VARIANT_NAME" ] && [ -n "$ATB_VARIANT_NAME" ]; then
+          name=$ATB_VARIANT_NAME
+        elif [ -n "$ORIGIN_VARIANT_NAME" ] && [ -z "$ATB_VARIANT_NAME" ]; then
+          name=$ORIGIN_VARIANT_NAME
+        elif [ -n "$ORIGIN_VARIANT_NAME" ] && [ -n "$ATB_VARIANT_NAME" ]; then
+          name="${ORIGIN_VARIANT_NAME}-${ATB_VARIANT_NAME}"
+        else
+          echo "Neither ATB_VARIANT_NAME nor ORIGIN_VARIANT_NAME is set"
+          exit 1
+        fi
+
+        echo "variant-name=${name}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload variant DMG as artifact
+      if: ${{ env.DRY_RUN == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: variant-dmg-${{ steps.set-variant-name.outputs.variant-name }}
+        path: ${{ github.workspace }}/macOS/duckduckgo.dmg
+        retention-days: 5
+
+    - name: Upload variant DMG to S3
+      if: ${{ env.DRY_RUN != 'true' && !env.DMG_URL }}
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_RELEASE_S3 }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_RELEASE_S3 }}
+        AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+      run: |
+        aws s3 cp duckduckgo.dmg \
+          s3://${{ vars.RELEASE_BUCKET_NAME }}/${{ vars.RELEASE_BUCKET_PREFIX }}/${{ steps.set-variant-name.outputs.variant-name }}/duckduckgo.dmg \
+          --acl public-read

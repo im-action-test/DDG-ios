@@ -1,0 +1,86 @@
+# ai-chat.yaml
+appId: com.duckduckgo.mobile.ios
+tags:
+    - iphone
+    - release
+
+---
+
+# Set up
+- runFlow:
+    file: ../shared/setup.yaml
+
+# New tab screen - tap Duck.ai button in omnibar
+- assertVisible:
+    id: "Browser.OmniBar.Button.AIChat"
+- tapOn:
+    id: "Browser.OmniBar.Button.AIChat"
+- assertVisible:
+    id: "AIChatFullModeBranding"
+
+# Navigate away via Tab Switcher to test browsing menu access
+- tapOn: "Tab Switcher"
+- tapOn: "New Tab"
+- tapOn: "Cancel"
+- assertVisible:
+    id: "searchEntry"
+- tapOn:
+    id: "searchEntry"
+- inputText: "https://privacy-test-pages.site"
+- pressKey: Enter
+- assertVisible: ".*Privacy Test Pages.*"
+
+# Browsing - test Duck.ai access from browsing menu (shows as "New Chat" in full mode)
+- tapOn: "Browsing Menu"
+- assertVisible: "New Chat"
+- tapOn: "New Chat"
+- assertVisible:
+    id: "AIChatFullModeBranding"
+
+# Tab Switcher - test Duck.ai access
+- tapOn: "Tab Switcher"
+- assertVisible:
+    id: "TabSwitcher.Button.DuckChat"
+- tapOn:
+    id: "TabSwitcher.Button.DuckChat"
+- assertVisible:
+    id: "AIChatFullModeBranding"
+- tapOn: "Tab Switcher"
+- tapOn: "New Tab"
+
+# Turn it off
+- tapOn: "Cancel"
+- tapOn: "Browsing Menu"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: "AI Features"
+    direction: DOWN
+- tapOn: "AI Features"
+- tapOn:
+    text: "1"
+    index: 0
+- tapOn: "Settings"
+- tapOn: "Done"
+
+# New tab screen - Duck.ai should not be visible
+- assertNotVisible:
+    id: "Browser.OmniBar.Button.AIChat"
+
+# Browsing - New Chat should not be visible in menu
+- assertVisible:
+    id: "searchEntry"
+- tapOn:
+    id: "searchEntry"
+- inputText: "https://privacy-test-pages.site"
+- pressKey: Enter
+- assertVisible: ".*Privacy Test Pages.*"
+- tapOn: "Browsing Menu"
+- assertNotVisible: "New Chat"
+# Dismiss menu by tapping Settings then backing out
+- tapOn: "Settings"
+- tapOn: "Done"
+
+# Tab Switcher - Duck.ai should not be visible
+- tapOn: "Tab Switcher"
+- assertNotVisible:
+    id: "TabSwitcher.Button.DuckChat"

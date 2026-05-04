@@ -1,0 +1,237 @@
+name: macOS - PIR E2E Tests
+
+defaults:
+  run:
+    working-directory: macOS
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1-5' # 3AM UTC offsetted to legacy to avoid action-junit-report@v4 bug
+  push:
+    branches: [ main, "release/macos/**", "hotfix/macos/**" ]
+    paths:
+      - 'SharedPackages/**'
+      - 'macOS/**'
+  pull_request:
+    # opened, synchronize, reopened are the default triggering events for a pull request
+    # We're also adding ready_for_review to run checks when a draft PR becomes ready for review.
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/**'
+      - '.xcode-version'
+      - 'SharedPackages/**'
+      - 'macOS/**'
+
+jobs:
+  should-run-checks:
+    name: Determine if checks should run
+    uses: ./.github/workflows/should_run_pr_checks.yml
+
+  pir-e2e-tests:
+    name: PIR e2e tests
+
+    needs: should-run-checks
+    if: needs.should-run-checks.outputs.should_run == 'true'
+
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-26]
+        include:
+          - xcode-version: "26.4"
+            runner: macos-26
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.runner }}
+      cancel-in-progress: true
+
+    timeout-minutes: 32
+    steps:
+    - name: Register SSH keys for private repos
+      uses: webfactory/ssh-agent@v0.9.1
+      with:
+        ssh-private-key: |
+          ${{ secrets.SSH_PRIVATE_KEY_FASTLANE_MATCH }}
+          ${{ secrets.SSH_PRIVATE_KEY_PIR_FAKE_BROKER }}
+
+    - name: Check out the code
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Start measuring duration
+      id: start-duration
+      uses: ./.github/actions/measure-duration
+      with:
+        mode: start
+
+    - name: Check out the PIR fake broker code
+      uses: actions/checkout@v6
+      with:
+        repository: DuckDuckGo/pir-fake-broker
+        ssh-key: ${{ secrets.SSH_PRIVATE_KEY_PIR_FAKE_BROKER }}
+        ref: main
+        path: macOS/pir-fake-broker
+
+    - name: Update Homebrew
+      run: brew update
+
+    - name: Start PIR Fake Broker
+      run: |
+        cd pir-fake-broker
+        cd scripts
+        ./install-prerequisites.sh
+        ./setup-ci.sh
+        cd ..
+        pnpm start:all &
+
+    - name: Setup Ruby and dependencies
+      uses: ./.github/actions/setup-ruby
+      with:
+        working-directory: macOS
+        cache-key-prefix: macos-ruby
+
+    - name: Sync code signing assets
+      id: sync-signing-first-attempt
+      continue-on-error: true
+      env:
+        APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        APPLE_API_KEY_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER }}
+        MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        SSH_PRIVATE_KEY_FASTLANE_MATCH: ${{ secrets.SSH_PRIVATE_KEY_FASTLANE_MATCH }}
+      run: bundle exec fastlane sync_signing_ci
+
+    - name: Retry sync code signing assets
+      if: steps.sync-signing-first-attempt.outcome == 'failure'
+      env:
+        APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        APPLE_API_KEY_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER }}
+        MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        SSH_PRIVATE_KEY_FASTLANE_MATCH: ${{ secrets.SSH_PRIVATE_KEY_FASTLANE_MATCH }}
+      run: |
+        echo "First attempt to sync code signing assets failed. Retrying..."
+        bundle exec fastlane sync_signing_ci
+
+    - name: Download and unzip artifact
+      uses: actions/download-artifact@v4
+
+    - name: Set cache key hash
+      run: |
+        has_only_tags=$(jq '[ .pins[].state | has("version") ] | all' DuckDuckGo-macOS.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)
+        if [[ "$has_only_tags" == "true" ]]; then
+          echo "cache_key_hash=${{ hashFiles('macOS/DuckDuckGo-macOS.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}" >> $GITHUB_ENV
+        else
+          echo "Package.resolved contains dependencies specified by branch or commit, skipping cache."
+        fi
+
+    - name: Cache SPM
+      if: env.cache_key_hash
+      uses: actions/cache@v4
+      with:
+        path: macOS/DerivedData/SourcePackages
+        key: ${{ runner.os }}-macos-${{ env.cache_key_hash }}
+        restore-keys: |
+          ${{ runner.os }}-macos-
+
+    - name: Select Xcode
+      uses: ./.github/actions/select-xcode-version
+      with:
+        xcode-version: ${{ matrix.xcode-version }}
+
+    - name: Restore Xcode Compilation Cache
+      uses: actions/cache/restore@v4
+      with:
+        path: macOS/DerivedData/CompilationCache.noindex
+        key: xcode-compilation-cache-pir-e2e
+        restore-keys: |
+          xcode-compilation-cache-pir-e2e-
+
+    - name: Run PIR e2e Tests
+      id: run-tests
+      run: |
+        launchctl setenv PRIVACYPRO_STAGING_ACCESS_TOKEN_V2 '${{ secrets.PRIVACYPRO_STAGING_ACCESS_TOKEN_V2 }}'
+        set -o pipefail && xcodebuild test \
+          -scheme "macOS PIR E2E Tests" \
+          -derivedDataPath "DerivedData" \
+          -configuration "CI" \
+          -skipPackagePluginValidation -skipMacroValidation \
+          ENABLE_TESTABILITY=true \
+          COMPILATION_CACHE_ENABLE_CACHING=YES \
+          OTHER_CODE_SIGN_FLAGS=--timestamp=none \
+          "-only-testing:DBPE2ETests" \
+          -test-iterations 3 \
+          -retry-tests-on-failure \
+          | tee xcodebuild.log \
+          | tee pir-e2e-tests.log
+      env:
+          PRIVACYPRO_STAGING_ACCESS_TOKEN_V2: ${{ secrets.PRIVACYPRO_STAGING_ACCESS_TOKEN_V2 }}
+
+    - name: Compute Compilation Cache hash
+      if: github.ref == 'refs/heads/main'
+      id: compilation-cache-hash
+      run: |
+        if [ -d "DerivedData/CompilationCache.noindex" ]; then
+          hash=$(find DerivedData/CompilationCache.noindex -type f \( -name "*.index" -o -name "*.actions" \) 2>/dev/null | sort | xargs cat | shasum -a 256 | cut -d' ' -f1)
+          echo "hash=${hash}" >> $GITHUB_OUTPUT
+        else
+          echo "No compilation cache directory found (Xcode version may not support compilation caching)"
+        fi
+
+    - name: Save Xcode Compilation Cache
+      if: github.ref == 'refs/heads/main' && steps.compilation-cache-hash.outputs.hash
+      uses: actions/cache/save@v4
+      with:
+        path: macOS/DerivedData/CompilationCache.noindex
+        key: xcode-compilation-cache-pir-e2e-${{ steps.compilation-cache-hash.outputs.hash }}
+
+    - name: Report job duration
+      if: success() || (always() && steps.run-tests.outcome == 'failure')
+      continue-on-error: true
+      uses: ./.github/actions/measure-duration
+      with:
+        mode: stop
+        start-timestamp: ${{ steps.start-duration.outputs.start-timestamp }}
+        pixel-name: m_ci_apple_duration_macos_pir_e2e_tests
+        pixel-params: |
+          runner: ${{ matrix.runner }}
+
+    - name: Send Status Pixel
+      if: always() && github.ref_name == 'main'
+      uses: ./.github/actions/send-pixel
+      with:
+        pixel-name: m_ci_apple_status_mac_e2e_pir_${{ steps.run-tests.outcome }}
+
+    - name: Prepare test report
+      if: always()
+      run: |
+        xcbeautify --report junit --report-path . --junit-report-filename pir-e2e-tests.xml < pir-e2e-tests.log
+
+    - name: Publish tests report
+      uses: mikepenz/action-junit-report@v4
+      if: always()
+      with:
+        check_name: "Test Report ${{ matrix.runner }}"
+        report_paths: macOS/pir-e2e-tests.xml
+        check_retries: ${{ needs.should-run-checks.outputs.strict_mode != 'true' }}
+
+    - name: Collect PIR process logs
+      if: failure() || cancelled()
+      run: |
+        log show --predicate 'processImagePath CONTAINS "DuckDuckGo Personal Information Removal"' --last 1h > pir-process.log 2>&1 || true
+
+    - name: Upload logs when workflow failed
+      uses: actions/upload-artifact@v4
+      if: failure() || cancelled()
+      with:
+        name: "BuildLogs ${{ matrix.runner }}"
+        path: |
+          macOS/xcodebuild.log
+          macOS/pir-process.log
+          macOS/DerivedData/Logs/Test/*.xcresult
+          ~/Library/Logs/DiagnosticReports/*
+        retention-days: 7
+

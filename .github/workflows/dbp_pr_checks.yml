@@ -1,0 +1,285 @@
+name: DBP - PR Checks
+
+defaults:
+  run:
+    working-directory: SharedPackages/DataBrokerProtectionCore
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'SharedPackages/DataBrokerProtectionCore/**'
+  pull_request:
+    # opened, synchronize, reopened are the default triggering events for a pull request
+    # We're also adding ready_for_review to run checks when a draft PR becomes ready for review.
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/**'
+      - '.xcode-version'
+      - 'SharedPackages/DataBrokerProtectionCore/**'
+  schedule:
+    - cron: '10,40 4,5,6 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  should-run-checks:
+    name: Determine if checks should run
+    uses: ./.github/workflows/should_run_pr_checks.yml
+
+  unit-tests:
+
+      name: Run unit tests (macOS)
+
+      needs: should-run-checks
+      if: needs.should-run-checks.outputs.should_run == 'true'
+
+      runs-on: macos-26
+      timeout-minutes: 30
+
+      env:
+        RUNS_ON: macos-26 # keep this in sync with runs-on above
+        WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+
+      steps:
+
+      - name: Check out the code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Start measuring duration
+        id: start-duration-macos
+        uses: ./.github/actions/measure-duration
+        with:
+          mode: start
+
+      - name: Set cache key hash
+        run: |
+          has_only_tags=$(jq '[ .pins[].state | has("version") ] | all' Package.resolved)
+          if [[ "$has_only_tags" == "true" ]]; then
+            # hashFiles does not respect the working directory, so the full path must be specified
+            echo "cache_key_hash=${{ hashFiles('SharedPackages/DataBrokerProtectionCore/Package.resolved') }}" >> $GITHUB_ENV
+          else
+            echo "Package.resolved contains dependencies specified by branch or commit, skipping cache."
+          fi
+
+      - name: Cache SPM
+        if: env.cache_key_hash
+        uses: actions/cache@v4
+        with:
+          path: SharedPackages/DataBrokerProtectionCore/DerivedData/SourcePackages
+          key: ${{ runner.os }}-dbp-spm-${{ env.cache_key_hash }}
+          restore-keys: |
+            ${{ runner.os }}-dbp-spm-
+
+      - name: Select Xcode
+        uses: ./.github/actions/select-xcode-version
+
+      - name: Run tests
+        id: run-unit-tests
+        run: |
+          set -o pipefail && xcodebuild test \
+            -scheme DataBrokerProtectionCore \
+            -destination 'platform=macOS' \
+            -derivedDataPath DerivedData \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            -test-iterations 3 \
+            -retry-tests-on-failure \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build-log.txt \
+            | xcbeautify --report junit --report-path . --junit-report-filename package-tests.xml
+
+      - name: Report job duration
+        if: success() || (always() && steps.run-unit-tests.outcome == 'failure')
+        continue-on-error: true
+        uses: ./.github/actions/measure-duration
+        with:
+          mode: stop
+          start-timestamp: ${{ steps.start-duration-macos.outputs.start-timestamp }}
+          pixel-name: m_ci_apple_duration_dbp_unit_tests_macos
+          pixel-params: |
+            runner: ${{ env.RUNS_ON }}
+
+      - name: Process test results
+        if: always()
+        uses: ./.github/actions/process-test-results
+        with:
+          working-directory: SharedPackages/DataBrokerProtectionCore
+          junit-path: package-tests.xml
+          log-path: build-log.txt
+          title: DBP (macOS)
+          test-outcome: ${{ steps.run-unit-tests.outcome }}
+
+      - name: Publish Unit Tests Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          check_name: DBP Test Report (macOS)
+          report_paths: SharedPackages/DataBrokerProtectionCore/package-tests.xml
+          require_tests: true
+          check_retries: ${{ needs.should-run-checks.outputs.strict_mode != 'true' }}
+          job_summary: 'false'
+
+      - name: Send Unit Tests Status Pixel
+        if: always() && github.ref_name == 'main'
+        uses: ./.github/actions/send-pixel
+        with:
+          pixel-name: m_ci_apple_status_dbp_main_unit_tests_macos_${{ steps.run-unit-tests.outcome }}
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BuildLogs
+          path: |
+            SharedPackages/DataBrokerProtectionCore/build-log.txt
+            SharedPackages/DataBrokerProtectionCore/DerivedData/Logs/Test/*.xcresult
+
+  unit-tests-ios:
+
+      name: Run unit tests (iOS)
+
+      needs: should-run-checks
+      if: needs.should-run-checks.outputs.should_run == 'true'
+
+      runs-on: macos-26
+      timeout-minutes: 30
+
+      env:
+        RUNS_ON: macos-26 # keep this in sync with runs-on above
+
+      steps:
+
+      - name: Check out the code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Start measuring duration
+        id: start-duration-ios
+        uses: ./.github/actions/measure-duration
+        with:
+          mode: start
+
+      - name: Set cache key hash
+        run: |
+          has_only_tags=$(jq '[ .pins[].state | has("version") ] | all' Package.resolved)
+          if [[ "$has_only_tags" == "true" ]]; then
+            echo "cache_key_hash=${{ hashFiles('SharedPackages/DataBrokerProtectionCore/Package.resolved') }}" >> $GITHUB_ENV
+          else
+            echo "Package.resolved contains dependencies specified by branch or commit, skipping cache."
+          fi
+
+      - name: Cache SPM
+        if: env.cache_key_hash
+        uses: actions/cache@v4
+        with:
+          path: SharedPackages/DataBrokerProtectionCore/DerivedData/SourcePackages
+          key: ${{ runner.os }}-dbp-spm-ios-${{ env.cache_key_hash }}
+          restore-keys: |
+            ${{ runner.os }}-dbp-spm-ios-
+
+      - name: Select Xcode
+        uses: ./.github/actions/select-xcode-version
+
+      - name: Select iOS Simulator
+        id: select-simulator
+        uses: ./.github/actions/select-ios-simulator
+        with:
+          preferred-versions: "26.4"
+
+      - name: Resolve package dependencies
+        run: |
+          echo "Using iOS simulator: ${{ steps.select-simulator.outputs.ios-version }}"
+          echo "Destination: ${{ steps.select-simulator.outputs.destination }}"
+
+          while xcodebuild -resolvePackageDependencies \
+            -scheme DataBrokerProtectionCore-Package \
+            -destination '${{ steps.select-simulator.outputs.destination }}' \
+            -derivedDataPath DerivedData \
+            2>&1 | grep Error; do :; done
+
+          # you just can't have good things
+          # set -o pipefail && swift package resolve | tee ios-build-log.txt | xcbeautify
+          # mkdir -p DerivedData/SourcePackages
+          # mv .build/* DerivedData/SourcePackages
+
+      - name: Run tests
+        id: run-unit-tests
+        run: |
+          set -o pipefail && xcodebuild test \
+            -scheme DataBrokerProtectionCore \
+            -destination '${{ steps.select-simulator.outputs.destination }}' \
+            -derivedDataPath DerivedData \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            -test-iterations 3 \
+            -retry-tests-on-failure \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee -a ios-build-log.txt \
+            | xcbeautify --report junit --report-path . --junit-report-filename dbp-ios-unittests.xml
+
+      - name: Report job duration
+        if: success() || (always() && steps.run-unit-tests.outcome == 'failure')
+        continue-on-error: true
+        uses: ./.github/actions/measure-duration
+        with:
+          mode: stop
+          start-timestamp: ${{ steps.start-duration-ios.outputs.start-timestamp }}
+          pixel-name: m_ci_apple_duration_dbp_unit_tests_ios
+          pixel-params: |
+            runner: ${{ env.RUNS_ON }}
+
+      - name: Process test results
+        if: always()
+        uses: ./.github/actions/process-test-results
+        with:
+          working-directory: SharedPackages/DataBrokerProtectionCore
+          junit-path: dbp-ios-unittests.xml
+          log-path: ios-build-log.txt
+          title: DBP (iOS)
+          test-outcome: ${{ steps.run-unit-tests.outcome }}
+
+      - name: Publish Unit Tests Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          check_name: DBP Test Report (iOS)
+          report_paths: SharedPackages/DataBrokerProtectionCore/dbp-ios-unittests.xml
+          require_tests: true
+          check_retries: ${{ needs.should-run-checks.outputs.strict_mode != 'true' }}
+          job_summary: 'false'
+
+      - name: Send Unit Tests Status Pixel
+        if: always() && github.ref_name == 'main'
+        uses: ./.github/actions/send-pixel
+        with:
+          pixel-name: m_ci_apple_status_dbp_main_unit_tests_ios_${{ steps.run-unit-tests.outcome }}
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build-log.txt
+          path: SharedPackages/DataBrokerProtectionCore/ios-build-log.txt
+
+      - name: Wait for crash reports to be generated
+        if: failure()
+        run: |
+          sleep 30
+          ls -l ~/Library/Logs/DiagnosticReports
+
+      - name: Upload crash reports
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: "dbp-crash-reports-iOS"
+          path: |
+            ~/Library/Logs/DiagnosticReports/xctest-*.ips
+          retention-days: 7
+          if-no-files-found: ignore
+

@@ -1,0 +1,147 @@
+//
+//  AutoconsentMessageProtocolTests.swift
+//
+//  Copyright © 2022 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import BrowserServicesKit
+import BrowserServicesKitTestsUtils
+import Common
+import History
+import HistoryView
+import PersistenceTestingUtils
+import PrivacyConfig
+import PrivacyConfigTestsUtils
+import WebKit
+import XCTest
+
+@testable import DuckDuckGo_Privacy_Browser
+
+class AutoconsentMessageProtocolTests: XCTestCase {
+
+    var userScript: AutoconsentUserScript!
+
+    @MainActor
+    override func setUp() async throws{
+        try await super.setUp()
+
+        let preferences = CookiePopupProtectionPreferences(persistor: MockCookiePopupProtectionPreferencesPersistor(), windowControllersManager: WindowControllersManagerMock())
+        preferences.isAutoconsentEnabled = true
+
+        userScript = AutoconsentUserScript(
+            config: MockPrivacyConfiguration(),
+            management: AutoconsentManagement(),
+            preferences: preferences,
+            featureFlagger: MockFeatureFlagger()
+        )
+    }
+
+    override func tearDown() {
+        userScript = nil
+    }
+
+    func replyToJson(msg: Any) -> String {
+        let jsonData = try? JSONSerialization.data(withJSONObject: msg, options: .sortedKeys)
+        return String(data: jsonData!, encoding: .ascii)!
+    }
+
+    @MainActor
+    func testInitIgnoresNonHttp() {
+        let expect = expectation(description: "tt")
+        let message = WKScriptMessage.mock(name: "init", body: [
+            "type": "init",
+            "url": "file://helicopter"
+        ])
+        userScript.handleMessage(
+            replyHandler: {(msg: Any?, _: String?) in
+                expect.fulfill()
+                XCTAssertEqual(self.replyToJson(msg: msg!), """
+                {"type":"ok"}
+                """)
+            },
+            message: message
+        )
+        waitForExpectations(timeout: 1.0)
+    }
+
+    @MainActor
+    func testInitResponds() {
+        let expect = expectation(description: "tt")
+        let message = WKScriptMessage.mock(name: "init", body: [
+            "type": "init",
+            "url": "https://example.com"
+        ])
+        userScript.handleMessage(
+            replyHandler: {(msg: Any?, _: String?) in
+                expect.fulfill()
+                guard let jsonData = try? JSONSerialization.data(withJSONObject: msg!, options: .sortedKeys),
+                      let json = try? JSONSerialization.jsonObject(with: jsonData, options: []),
+                      let dict = json as? [String: Any],
+                      let config = dict["config"] as? [String: Any]
+                else {
+                    XCTFail("Could not parse init response")
+                    return
+                }
+
+                XCTAssertEqual(dict["type"] as? String, "initResp")
+                XCTAssertEqual(config["autoAction"] as? String, "optOut")
+            },
+            message: message
+        )
+        waitForExpectations(timeout: 1.0)
+    }
+
+    @MainActor
+    func testEval() {
+        let webView = WKWebView()
+        let message = WKScriptMessage.mock(name: "eval", body: [
+            "type": "eval",
+            "id": "some id",
+            "code": "1+1==2"
+        ], webView: webView)
+
+        let expect = expectation(description: "testEval")
+        userScript.handleMessage(
+            replyHandler: {(msg: Any?, _: String?) in
+                expect.fulfill()
+                XCTAssertEqual(self.replyToJson(msg: msg!), """
+                {"id":"some id","result":true,"type":"evalResp"}
+                """)
+            },
+            message: message
+        )
+        waitForExpectations(timeout: 5.0)
+    }
+
+    @MainActor
+    func testPopupFoundNoPromptIfEnabled() {
+        let expect = expectation(description: "tt")
+        let message = WKScriptMessage.mock(name: "popupFound", body: [
+            "type": "popupFound",
+            "cmp": "some cmp",
+            "url": "https://example.com"
+        ])
+        userScript.handleMessage(
+            replyHandler: {(msg: Any?, _: String?) in
+                expect.fulfill()
+                XCTAssertEqual(self.replyToJson(msg: msg!), """
+                {"type":"ok"}
+                """)
+            },
+            message: message
+        )
+        waitForExpectations(timeout: 1.0)
+    }
+}

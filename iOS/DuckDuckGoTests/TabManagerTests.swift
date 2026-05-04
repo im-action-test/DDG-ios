@@ -1,0 +1,315 @@
+//
+//  TabManagerTests.swift
+//  DuckDuckGo
+//
+//  Copyright © 2025 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import XCTest
+import Core
+@testable import DuckDuckGo
+import SubscriptionTestingUtilities
+import BrowserServicesKit
+import PersistenceTestingUtils
+import BrowserServicesKitTestsUtils
+import Combine
+
+@MainActor
+final class TabManagerTests: XCTestCase {
+
+    override func tearDown() {
+        UserDefaults.app.removeObject(forKey: FireModeCapability.isFireModeEnabledKey)
+        super.tearDown()
+    }
+
+    func testWhenClosingOnlyOpenTabThenASingleEmptyTabIsAdded() async throws {
+
+        let tabsModel = TabsModel(desktop: false)
+        XCTAssertEqual(1, tabsModel.count)
+
+        let originalTab = try XCTUnwrap(tabsModel.get(tabAt: 0))
+        XCTAssertTrue(originalTab === tabsModel.get(tabAt: 0))
+
+        let manager = try makeManager(tabsModel)
+        manager.remove(tab: originalTab)
+
+        XCTAssertEqual(1, tabsModel.count)
+        XCTAssertFalse(originalTab === tabsModel.get(tabAt: 0))
+    }
+
+    func testWhenTabOpenedFromOtherTabThenRemovingTabSetsIndexToPreviousTab() async throws {
+        let tabsModel = TabsModel(desktop: false)
+        let exampleTab = Tab(link: Link(title: "example", url: URL(string: "https://example.com")!))
+        tabsModel.insert(tab: exampleTab, placement: .atEnd, selectNewTab: true)
+        tabsModel.insert(tab: Tab(), placement: .atEnd, selectNewTab: true)
+        XCTAssertEqual(3, tabsModel.count)
+
+        tabsModel.select(tab: exampleTab)
+
+        let manager = try makeManager(tabsModel)
+
+        // We expect the new tab to be the index after whatever was current (ie zero)
+        XCTAssertEqual(1, tabsModel.currentIndex)
+        XCTAssertEqual("https://example.com", tabsModel.tabs[1].link?.url.absoluteString)
+
+        XCTAssertEqual(3, tabsModel.count)
+
+        manager.remove(tab: exampleTab)
+        // We expect the new current index to be the previous index
+        XCTAssertEqual(0, tabsModel.currentIndex)
+    }
+
+    func testWhenAppBecomesActiveAndExcessPreviewsThenCleanUpHappens() async throws {
+        let mock = MockTabPreviewsSource(totalStoredPreviews: 5)
+        let tabsModel = TabsModel(desktop: false)
+        let fireModel = TabsModel(desktop: false, mode: .fire)
+        tabsModel.insert(tab: Tab(), placement: .atEnd, selectNewTab: false)
+        fireModel.insert(tab: Tab(fireTab: true), placement: .atEnd, selectNewTab: false)
+        let manager = try makeManager(tabsModel, fireModel: fireModel, previewsSource: mock)
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        try await Task.sleep(interval: 0.5)
+        XCTAssertEqual(1, mock.removePreviewsWithIdNotInCalls.count)
+
+        // This is just to keep a reference to the manager to supress the unused warning and keep it from being deinit
+        manager.removeAll()
+    }
+
+    // MARK: - Tab History Cleanup Tests
+    
+    func testWhenTabRemoved_ThenTabHistoryIsCleared() async throws {
+        let tabsModel = TabsModel(desktop: false)
+        let tabToRemove = Tab(link: Link(title: "example", url: URL(string: "https://example.com")!))
+        tabsModel.insert(tab: tabToRemove, placement: .atEnd, selectNewTab: true)
+        let tabID = tabToRemove.uid
+        
+        let mockHistoryManager = MockHistoryManager()
+        mockHistoryManager.removeTabHistoryExpectation = expectation(description: "removeTabHistory called")
+        let manager = try makeManager(tabsModel, historyManager: mockHistoryManager)
+        
+        manager.remove(tab: tabToRemove)
+        
+        await fulfillment(of: [mockHistoryManager.removeTabHistoryExpectation!], timeout: 5.0)
+        
+        XCTAssertEqual(mockHistoryManager.removeTabHistoryCalls.count, 1)
+        XCTAssertEqual(mockHistoryManager.removeTabHistoryCalls.first, [tabID])
+    }
+    
+    func testWhenAllTabsRemoved_ThenTabHistoryIsCleared() async throws {
+        let tabsModel = TabsModel(desktop: false)
+        let initialTab = try XCTUnwrap(tabsModel.tabs.first)
+        let tab1 = Tab(link: Link(title: "example1", url: URL(string: "https://example1.com")!))
+        tabsModel.insert(tab: tab1, placement: .atEnd, selectNewTab: true)
+        let tabIDs = [initialTab.uid, tab1.uid]
+        
+        let mockHistoryManager = MockHistoryManager()
+        mockHistoryManager.removeTabHistoryExpectation = expectation(description: "removeTabHistory called")
+        let manager = try makeManager(tabsModel, historyManager: mockHistoryManager)
+        
+        manager.removeAll()
+        
+        await fulfillment(of: [mockHistoryManager.removeTabHistoryExpectation!], timeout: 5.0)
+        
+        XCTAssertEqual(mockHistoryManager.removeTabHistoryCalls.count, 1)
+        XCTAssertEqual(Set(mockHistoryManager.removeTabHistoryCalls.first ?? []), Set(tabIDs))
+    }
+    
+    func testWhenViewModelRequested_ThenReturnsViewModelForTab() throws {
+        let tabsModel = TabsModel(desktop: false)
+        let tab = try XCTUnwrap(tabsModel.get(tabAt: 0))
+        
+        let mockHistoryManager = MockHistoryManager()
+        let manager = try makeManager(tabsModel, historyManager: mockHistoryManager)
+        
+        let viewModel = manager.viewModel(for: tab)
+        
+        XCTAssertEqual(viewModel.tab.uid, tab.uid)
+    }
+
+    func testWhenFireModeResolvedAtLaunchThenMidSessionFlagChangeDoesNotAffectBrowsingMode() throws {
+        let tabsModel = TabsModel(desktop: false)
+        let flagger = MockFeatureFlagger()
+        flagger.enabledFeatureFlags = [.fireMode]
+        let manager = try makeManager(tabsModel, featureFlagger: flagger)
+
+        manager.setBrowsingMode(.fire, source: .tabSelection)
+        XCTAssertEqual(manager.currentBrowsingMode, .fire)
+
+        // Simulate the feature flag source changing mid-session;
+        // the resolved value in UserDefaults should remain unchanged.
+        flagger.enabledFeatureFlags = []
+
+        XCTAssertEqual(manager.currentBrowsingMode, .fire,
+                       "Browsing mode should remain .fire because the capability was resolved at launch")
+    }
+
+    // MARK: - Fire Mode Zero Tabs
+
+    func testWhenFireModeRemoveAllThenTabsIsEmpty() throws {
+        let fireModel = TabsModel(tabs: [
+            Tab(link: Link(title: "url1", url: URL(string: "https://url1.com")!), fireTab: true),
+            Tab(link: Link(title: "url2", url: URL(string: "https://url2.com")!), fireTab: true)
+        ], desktop: false, mode: .fire)
+        let normalModel = TabsModel(desktop: false)
+        let flagger = MockFeatureFlagger()
+        flagger.enabledFeatureFlags = [.fireMode]
+        let manager = try makeManager(normalModel, fireModel: fireModel, featureFlagger: flagger)
+        manager.setBrowsingMode(.fire, source: .tabSelection)
+
+        XCTAssertEqual(manager.currentTabsModel.count, 2)
+
+        manager.removeAll()
+
+        XCTAssertEqual(manager.currentTabsModel.count, 0)
+        XCTAssertNil(manager.currentTabsModel.currentTab)
+    }
+
+    func testWhenFireModeCurrentWithCreateIfNeededFalseAndNoTabsThenReturnsNil() throws {
+        let fireModel = TabsModel(desktop: false, mode: .fire)
+        let normalModel = TabsModel(desktop: false)
+        let flagger = MockFeatureFlagger()
+        flagger.enabledFeatureFlags = [.fireMode]
+        let manager = try makeManager(normalModel, fireModel: fireModel, featureFlagger: flagger)
+        manager.setBrowsingMode(.fire, source: .tabSelection)
+
+        XCTAssertEqual(manager.currentTabsModel.count, 0)
+        XCTAssertNil(manager.current(createIfNeeded: false))
+    }
+
+    func testWhenFireModeRemoveOnlyTabThenTabsIsEmpty() throws {
+        let tab = Tab(link: Link(title: "url1", url: URL(string: "https://url1.com")!), fireTab: true)
+        let fireModel = TabsModel(tabs: [tab], desktop: false, mode: .fire)
+        let normalModel = TabsModel(desktop: false)
+        let flagger = MockFeatureFlagger()
+        flagger.enabledFeatureFlags = [.fireMode]
+        let manager = try makeManager(normalModel, fireModel: fireModel, featureFlagger: flagger)
+        manager.setBrowsingMode(.fire, source: .tabSelection)
+
+        XCTAssertEqual(manager.currentTabsModel.count, 1)
+
+        manager.remove(tab: tab)
+
+        XCTAssertEqual(manager.currentTabsModel.count, 0)
+        XCTAssertNil(manager.currentTabsModel.currentTab)
+    }
+
+    func testWhenFireModeReplaceOnlyTabThenNewTabIsInserted() throws {
+        let oldTab = Tab(link: Link(title: "old", url: URL(string: "https://old.com")!), fireTab: true)
+        let fireModel = TabsModel(tabs: [oldTab], desktop: false, mode: .fire)
+        let normalModel = TabsModel(desktop: false)
+        let flagger = MockFeatureFlagger()
+        flagger.enabledFeatureFlags = [.fireMode]
+        let manager = try makeManager(normalModel, fireModel: fireModel, featureFlagger: flagger)
+        manager.setBrowsingMode(.fire, source: .tabSelection)
+
+        let newTab = Tab(fireTab: true)
+        manager.replace(tab: oldTab, withNewTab: newTab)
+
+        XCTAssertEqual(manager.currentTabsModel.count, 1)
+        XCTAssertTrue(manager.currentTabsModel.tabs[0] === newTab)
+    }
+
+    // MARK: - removeAll(browsingMode:) Isolation
+
+    func testWhenRemoveAllWithFireMode() throws {
+        let normalTab = Tab(link: Link(title: "normal", url: URL(string: "https://normal.com")!))
+        let fireTab = Tab(link: Link(title: "fire", url: URL(string: "https://fire.com")!), fireTab: true)
+        let normalModel = TabsModel(tabs: [normalTab], desktop: false)
+        let fireModel = TabsModel(tabs: [fireTab], desktop: false, mode: .fire)
+        let mockPreviews = MockTabPreviewsSource()
+
+        let manager = try makeManager(normalModel, fireModel: fireModel, previewsSource: mockPreviews)
+
+        manager.removeAll(browsingMode: .fire)
+
+        // Previews preserved
+        XCTAssertEqual(mockPreviews.removePreviewsWithIdNotInCalls.count, 1)
+        let preservedIDs = mockPreviews.removePreviewsWithIdNotInCalls.first
+        XCTAssertEqual(preservedIDs, Set([normalTab.uid]))
+        
+        // Normal tabs untouched
+        XCTAssertEqual(fireModel.count, 0)
+        XCTAssertEqual(normalModel.count, 1)
+        XCTAssertEqual(normalModel.tabs.first?.link?.url.absoluteString, "https://normal.com")
+    }
+
+    func testWhenRemoveAllWithNilPreserveNothing() throws {
+        let normalTab = Tab(link: Link(title: "normal", url: URL(string: "https://normal.com")!))
+        let fireTab = Tab(link: Link(title: "fire", url: URL(string: "https://fire.com")!), fireTab: true)
+        let normalModel = TabsModel(tabs: [normalTab], desktop: false)
+        let fireModel = TabsModel(tabs: [fireTab], desktop: false, mode: .fire)
+        let mockPreviews = MockTabPreviewsSource()
+
+        let manager = try makeManager(normalModel, fireModel: fireModel, previewsSource: mockPreviews)
+
+        manager.removeAll(browsingMode: nil)
+
+        // Previews removed
+        XCTAssertEqual(mockPreviews.removePreviewsWithIdNotInCalls.count, 1)
+        let preservedIDs = mockPreviews.removePreviewsWithIdNotInCalls.first
+        XCTAssertTrue(preservedIDs?.isEmpty ?? false)
+        
+        // All tabs removed
+        XCTAssertEqual(fireModel.count, 0)
+        XCTAssertEqual(normalModel.count, 1)
+        XCTAssertNil(normalModel.tabs.first?.link?.url.absoluteString)
+    }
+
+    func makeManager(_ model: TabsModel,
+                     fireModel: TabsModel? = nil,
+                     previewsSource: TabPreviewsSource = MockTabPreviewsSource(),
+                     historyManager: MockHistoryManager = MockHistoryManager(),
+                     featureFlagger: MockFeatureFlagger = MockFeatureFlagger(),
+                     launchSourceManager: LaunchSourceManaging = MockLaunchSourceManager()) throws -> TabManager {
+        FireModeCapability.resolve(using: featureFlagger)
+        let tabsPersistence = TabsModelPersistence(normalStore: MockKeyValueFileStore(),
+                                                   fireStore: MockKeyValueFileStore(),
+                                                   legacyStore: MockKeyValueStore())
+        let fireModel = fireModel ?? TabsModel(tabs: [], desktop: false, mode: .fire)
+        let modelProvider = TabsModelProvider(normalTabsModel: model, fireModeTabsModel: fireModel, persistence: tabsPersistence)
+        return TabManager(tabsModelProvider: modelProvider,
+                          previewsSource: previewsSource,
+                          interactionStateSource: TabInteractionStateDiskSource(),
+                          privacyConfigurationManager: MockPrivacyConfigurationManager(),
+                          bookmarksDatabase: MockBookmarksDatabase.make(prepareFolderStructure: false),
+                          historyManager: historyManager,
+                          syncService: MockDDGSyncing(),
+                          userScriptsDependencies: DefaultScriptSourceProvider.Dependencies.makeMock(),
+                          contentBlockingAssetsPublisher: PassthroughSubject<ContentBlockingUpdating.NewContent, Never>().eraseToAnyPublisher(),
+                          subscriptionDataReporter: MockSubscriptionDataReporter(),
+                          contextualOnboardingPresenter: ContextualOnboardingPresenterMock(),
+                          contextualOnboardingLogic: ContextualOnboardingLogicMock(),
+                          onboardingPixelReporter: OnboardingPixelReporterMock(),
+                          featureFlagger: featureFlagger,
+                          contentScopeExperimentManager: MockContentScopeExperimentManager(),
+                          appSettings: AppSettingsMock(),
+                          textZoomCoordinatorProvider: MockTextZoomCoordinatorProvider(),
+                          autoconsentManagementProvider: MockAutoconsentManagementProvider(),
+                          websiteDataManager: MockWebsiteDataManager(),
+                          fireproofing: MockFireproofing(),
+                          favicons: Favicons(),
+                          maliciousSiteProtectionManager: MockMaliciousSiteProtectionManager(),
+                          maliciousSiteProtectionPreferencesManager: MockMaliciousSiteProtectionPreferencesManager(),
+                          featureDiscovery: MockFeatureDiscovery(),
+                          keyValueStore: MockKeyValueFileStore(),
+                          daxDialogsManager: DummyDaxDialogsManager(),
+                          aiChatSettings: MockAIChatSettingsProvider(),
+                          productSurfaceTelemetry: MockProductSurfaceTelemetry(),
+                          privacyStats: MockPrivacyStats(),
+                          voiceSearchHelper: MockVoiceSearchHelper(),
+                          launchSourceManager: launchSourceManager,
+                          darkReaderFeatureSettings: MockDarkReaderFeatureSettings())
+    }
+
+}

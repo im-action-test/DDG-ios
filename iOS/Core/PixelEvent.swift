@@ -1,0 +1,3807 @@
+//
+//  PixelEvent.swift
+//  DuckDuckGo
+//
+//  Copyright © 2022 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import Foundation
+import BrowserServicesKit
+import Bookmarks
+import Configuration
+import ContentBlocking
+import DDGSync
+import MaliciousSiteProtection
+import PixelKit
+
+extension Pixel {
+    
+    public enum Event {
+
+        case appInstall
+        case appLaunch
+        /// Fires when the app launches as a result of tapping an http/https link outside the DDG browser.
+        ///
+        /// For more info check the [Asana Task](https://app.asana.com/0/72649045549333/1209593812414962/f)
+        case appLaunchFromExternalLink
+        /// Fires when the app launches as a result of an external app sharing a link with the DDG browser.
+        ///
+        /// For more info check the [Asana Task](https://app.asana.com/0/72649045549333/1209593812414962/f)
+        case appLaunchFromShareExtension
+        case refreshPressed
+        case pullToRefresh
+
+        // https://app.asana.com/1/137249556945/project/392891325557410/task/1210882421460693?focus=true
+        case widgetReport
+        case widgetReportFailure
+
+        case deviceOrientationLandscape
+
+        case keyboardGoWhileOnNTP
+        case keyboardGoWhileOnWebsite
+        case keyboardGoWhileOnSERP
+        case keyboardGoWhileOnAIChat
+        
+        case keyboardSettingsOnNewTabEnabledDaily
+        case keyboardSettingsOnAppLaunchEnabledDaily
+        case keyboardOnAppLaunchUsedDaily
+
+        case forgetAllPressedBrowsing
+        case forgetAllPressedTabSwitching
+        case forgetAllPressedSettings
+        case forgetAllExecuted
+        case forgetAllDataCleared
+        
+        case forgetAllPressedBrowsingDaily
+        case forgetAllPressedTabSwitcherDaily
+        case forgetAllExecutedDaily
+
+        // MARK: Single Tab Burn
+        case singleTabBurnExecuted
+        case singleTabDataCleared
+        
+        case privacyDashboardOpened
+        case privacyDashboardFirstTimeOpenedUnique
+
+        case dashboardProtectionAllowlistAdd
+        case dashboardProtectionAllowlistRemove
+        
+        case privacyDashboardReportBrokenSite
+        
+        case tabSwitcherListEnabled
+        case tabSwitcherGridEnabled
+        case tabSwitcherNewTab
+        case tabSwitcherSwitchTabs
+        case tabSwitcherClickCloseTab
+        case tabSwitcherSwipeCloseTab
+        case tabSwitchLongPressNewTab
+        case tabLongPressMenuDisplayed
+        case tabLongPressMenuNewFireTab
+        case tabLongPressMenuNewNormalTab
+        case tabSwitcherOpenedDaily
+        case tabManagerSwitchToAITab
+        case tabManagerSwitchToWebTab
+        case tabManagerCloseAITab
+        case tabManagerCloseWebTab
+
+        // MARK: KeyValueFiles Store
+        case keyValueFileStoreSupportDirAccessError
+        case keyValueFileStoreInitError
+
+        // MARK: Tabs Store
+        case tabsStoreSupportDirAccessError
+        case tabsStoreInitError
+        case tabsStoreSaveError
+        case tabsStoreReadError
+
+        // MARK: Tabswitcher improvements
+        case tabSwitcherEditMenuClicked
+        case tabSwitcherEditMenuSelectTabs
+        case tabSwitcherEditMenuSelectTabsDaily
+        case tabSwitcherEditMenuCloseAllTabs
+        case tabSwitcherEditMenuCloseAllTabsDaily
+        case tabSwitcherTabSelected
+        case tabSwitcherTabDeselected
+        case tabSwitcherSelectAll
+        case tabSwitcherSelectAllDaily
+        case tabSwitcherDeselectAll
+        case tabSwitcherDeselectAllDaily
+        case tabSwitcherCloseAll
+        case tabSwitcherCloseAllDaily
+        case tabSwitcherConfirmCloseTabs
+        case tabSwitcherConfirmCloseTabsDaily
+        case tabSwitcherSelectModeMenuClicked
+        case tabSwitcherSelectModeMenuShareLinks
+        case tabSwitcherSelectModeMenuShareLinksDaily
+        case tabSwitcherSelectModeMenuBookmarkTabs
+        case tabSwitcherSelectModeMenuBookmarkTabsDaily
+        case tabSwitcherSelectModeMenuBookmarkAllTabs
+        case tabSwitcherSelectModeMenuBookmarkAllTabsDaily
+        case tabSwitcherSelectModeMenuCloseOtherTabs
+        case tabSwitcherSelectModeMenuCloseOtherTabsDaily
+        case tabSwitcherLongPress
+        case tabSwitcherLongPressDaily
+        case tabSwitcherLongPressShare
+        case tabSwitcherLongPressBookmarkTabs
+        case tabSwitcherLongPressBookmarkTabsDaily
+        case tabSwitcherLongPressSelectTabs
+        case tabSwitcherLongPressCloseTab
+        case tabSwitcherLongPressCloseOtherTabs
+        case tabSwitcherLongPressCloseOtherTabsDaily
+
+        case settingsDoNotSellShown
+        case settingsDoNotSellOn
+        case settingsDoNotSellOff
+        
+        case settingsAutoconsentShown
+        case settingsAutoconsentOn
+        case settingsAutoconsentOff
+
+        case browsingMenuOpened
+        case browsingMenuOpenedNewTabPage
+        case browsingMenuOpenedError
+        case browsingMenuDismissed
+        case browsingMenuNewTab
+        case browsingMenuAddToBookmarks
+        case browsingMenuEditBookmark
+        case browsingMenuAddToFavorites
+        case browsingMenuRemoveFromFavorites
+        case browsingMenuAddToFavoritesAddFavoriteFlow
+        case browsingMenuToggleBrowsingMode
+        case browsingMenuShare
+        case browsingMenuCopy
+        case browsingMenuPrint
+        case browsingMenuListPrint
+        case browsingMenuFindInPage
+        case browsingMenuZoom
+        case browsingMenuDisableProtection
+        case browsingMenuEnableProtection
+        case browsingMenuReportBrokenSite
+        case browsingMenuFireproof
+        case fireproofingETLDPlus1MigrationStart
+        case fireproofingETLDPlus1MigrationSuccess
+        case fireproofingETLDPlus1MigrationFailed
+        case browsingMenuAutofill
+        case browsingMenuAIChatNewTabPage
+        case browsingMenuAIChatWebPage
+        case browsingMenuRefreshPage
+        case browsingMenuNewDuckAddress
+        case browsingMenuVPN
+        case browsingMenuAIChat
+
+        case addressBarShare
+        case addressBarSettings
+        case addressBarCancelPressedOnNTP
+        case addressBarCancelPressedOnWebsite
+        case addressBarCancelPressedOnSERP
+        case addressBarCancelPressedOnAIChat
+        case addressBarClickOnNTP
+        case addressBarClickOnWebsite
+        case addressBarClickOnSERP
+        case addressBarClickOnAIChat
+        case addressBarClearPressedOnNTP
+        case addressBarClearPressedOnWebsite
+        case addressBarClearPressedOnSERP
+        case addressBarClearPressedOnAIChat
+        case addressBarGestureDismiss
+
+        case shareSheetResultSuccess
+        case shareSheetResultFail
+        case shareSheetActivityCopy
+        case shareSheetActivityAddBookmark
+        case shareSheetActivityAddFavorite
+        case shareSheetActivityFindInPage
+        case shareSheetActivityPrint
+        case shareSheetActivityAddToReadingList
+        case shareSheetActivityOther
+        
+        case tabBarBackPressed
+        case tabBarForwardPressed
+        case bookmarksButtonPressed
+        case tabBarBookmarksLongPressed
+        case tabBarTabSwitcherOpened
+        
+        case homeScreenShown
+        case homeScreenEditFavorite
+        case homeScreenDeleteFavorite
+
+        case favoriteLaunchedNTP
+        case favoriteLaunchedWebsite
+        case favoriteLaunchedWidget
+
+        case autocompleteClickPhrase
+        case autocompleteClickWebsite
+        case autocompleteClickBookmark
+        case autocompleteClickFavorite
+        case autocompleteClickSearchHistory
+        case autocompleteClickSiteHistory
+        case autocompleteClickOpenTab
+        case autocompleteAskAIChatLegacyExperience
+        case autocompleteAskAIChatExperimentalExperience
+        case autocompleteDisplayedLocalBookmark
+        case autocompleteDisplayedLocalFavorite
+        case autocompleteDisplayedLocalHistory
+        case autocompleteDisplayedOpenedTab
+        case autocompleteDeleteHistoryEntry
+        case autocompleteDeleteHistoryEntryDaily
+
+        case feedbackPositive
+        case feedbackNegativePrefix(category: String)
+        
+        case brokenSiteReport
+        
+        // MARK: - Onboarding
+
+        case onboardingIntroShownUnique
+        case onboardingIntroSkipOnboardingCTAPressed
+        case onboardingIntroConfirmSkipOnboardingCTAPressed
+        case onboardingIntroResumeOnboardingCTAPressed
+        case onboardingIntroComparisonChartShownUnique
+        case onboardingIntroChooseBrowserCTAPressed
+        case onboardingIntroChooseAppIconImpressionUnique
+        case onboardingIntroChooseCustomAppIconColorCTAPressed
+        case onboardingIntroChooseAddressBarImpressionUnique
+        case onboardingIntroBottomAddressBarSelected
+        case onboardingIntroChooseSearchExperienceImpressionUnique
+        case onboardingIntroAIChatSelected
+        case onboardingIntroSearchOnlySelected
+        case onboardingIntroDuckAIExperimentToggleImpressionUnique
+        case onboardingIntroDuckAIExperimentToggleContinuePressedSearch
+        case onboardingIntroDuckAIExperimentToggleContinuePressedAI
+        case onboardingDuckAIExperimentFireDialogShownUnique
+        case onboardingDuckAIExperimentFireButtonCTAPressed
+        case onboardingDuckAIExperimentFinalDialogShownUnique
+
+        case onboardingContextualSearchOptionTappedUnique
+        case onboardingContextualSearchCustomUnique
+        case onboardingContextualSiteOptionTappedUnique
+        case onboardingContextualSiteCustomUnique
+        case onboardingContextualSecondSiteVisitUnique
+        case onboardingContextualTrySearchUnique
+        case onboardingContextualTryVisitSiteUnique
+
+        case daxDialogsSerpUnique
+        case daxDialogsWithoutTrackersUnique
+        case daxDialogsWithoutTrackersFollowUp
+        case daxDialogsWithTrackersUnique
+        case daxDialogsSiteIsMajorUnique
+        case daxDialogsSiteOwnedByMajorUnique
+        case daxDialogsFireEducationShownUnique
+        case daxDialogsFireEducationConfirmedUnique
+        case daxDialogsFireEducationCancelledUnique
+        case daxDialogsEndOfJourneyTabUnique
+        case daxDialogsEndOfJourneyNewTabUnique
+        case daxDialogsEndOfJourneyDismissed
+
+        // MARK: - Dismiss Dax Dialog
+        // [Pixel Triage](https://app.asana.com/0/69071770703008/1209886067589853)
+        // [Pixels description](https://app.asana.com/0/1206329551987282/1209878560708456/f)
+
+        /// Event Trigger: Triggered when the users dismiss the “Try Search” dialog prompted from a new tab.
+        /// Anomaly Investigation: It is normal for this pixel to spike as the number of installs grows. Ensure that the number of dismiss is not greater than the dialog number of impressions.
+        case onboardingTrySearchDialogNewTabDismissButtonTapped
+
+        /// Event Trigger: Triggered when the users dismiss the "Search Result" dialog upon performing an anonymous search.
+        /// Anomaly Investigation: It is normal for this pixel to spike as the number of installs grows. Ensure that the number of dismiss is not greater than the dialog number of impressions.
+        case onboardingSearchResultDialogDismissButtonTapped
+
+        /// Event Trigger: Triggered when the users dismiss the "Try Visit Site" dialog prompted from a new tab.
+        /// Anomaly Investigation: It is normal for this pixel to spike as the number of installs grows. Ensure that the number of dismiss is not greater than the dialog number of impressions.
+        case onboardingTryVisitSiteDialogNewTabDismissButtonTapped
+
+        /// Event Trigger: Triggered when the users dismiss the "Try Visit Site" dialog prompted from in-context navigation.
+        /// Anomaly Investigation: It is normal for this pixel to spike as the number of installs grows. Ensure that the number of dismiss is not greater than the dialog number of impressions.
+        case onboardingTryVisitSiteDialogDismissButtonTapped
+
+        /// Event Trigger: Triggered when the users dismiss the "Blocked Trackers dialog".
+        /// Anomaly Investigation: Check that
+        case onboardingTrackersDialogDismissButtonTapped
+
+        /// Event Trigger: Triggered when the users dismiss the "Fire Button" dialog prompted from in-context navigation.
+        /// Anomaly Investigation: It is normal for this pixel to spike as the number of installs grows. Ensure that the number of dismiss is not greater than the dialog number of impressions.
+        case onboardingFireDialogDismissButtonTapped
+
+        /// Event Trigger: Triggered when the users dismiss the "End of Journey" dialog prompted from a new tab.
+        /// Anomaly Investigation: It is normal for this pixel to spike as the number of installs grows. Ensure that the number of dismiss is not greater than the dialog number of impressions.
+        case onboardingEndOfJourneyDialogNewTabDismissButtonTapped
+
+        /// Event Trigger: Triggered when the users dismiss the "End of Journey" dialog prompted from in-context navigation.
+        /// Anomaly Investigation: It is normal for this pixel to spike as the number of installs grows. Ensure that the number of dismiss is not greater than the dialog number of impressions.
+        case onboardingEndOfJourneyDialogDismissButtonTapped
+
+        /// Event Trigger: Triggered when the users dismiss the "Subscription" dialog prompted from a new tab.
+        /// Anomaly Investigation: It is normal for this pixel to spike as the number of installs grows. Ensure that the number of dismiss is not greater than the dialog number of impressions.
+        case onboardingSubscriptionDialogDismissButtonTapped
+
+        // MARK: - Onboarding Add To Dock
+
+        case onboardingAddToDockPromoImpressionsUnique
+        case onboardingAddToDockPromoShowTutorialCTATapped
+        case onboardingAddToDockPromoDismissCTATapped
+        case onboardingAddToDockTutorialDismissCTATapped
+
+        // MARK: - Onboarding Add To Dock
+
+        case widgetsOnboardingCTAPressed
+        case widgetsOnboardingDeclineOptionPressed
+        case widgetsOnboardingMovedToBackground
+        
+        case emailEnabled
+        case emailDisabled
+        case emailUserPressedUseAddress
+        case emailUserPressedUseAlias
+        case emailUserCreatedAlias
+        case emailTooltipDismissed
+        
+        case voiceSearchSERPDone
+        case voiceSearchAIChatDone
+        case openVoiceSearch
+        case voiceSearchCancelled
+
+        case bookmarkLaunchList
+        case bookmarkLaunchScored
+        case bookmarkAddFavoriteFromBookmark
+        case bookmarkRemoveFavoriteFromBookmark
+        case bookmarkAddFavoriteBySwipe
+        case bookmarkDeletedFromBookmark
+
+        case bookmarkImportSuccess
+        case bookmarkImportFailure
+        case bookmarkImportFailureParsingDL
+        case bookmarkImportFailureParsingBody
+        case bookmarkImportFailureTransformingSafari
+        case bookmarkImportFailureSaving
+        case bookmarkImportFailureUnknown
+        case bookmarkExportSuccess
+        case bookmarkExportFailure
+
+        case textZoomSettingsChanged
+        case textZoomChangedOnPage
+        case textZoomChangedOnPageDaily
+
+        case downloadStarted
+        case downloadStartedDueToUnhandledMIMEType
+        case downloadTriedToPresentPreviewWithoutTab
+        case downloadsListOpened
+        
+        case downloadsListOngoingDownloadCancelled
+        case downloadsListCompleteDownloadDeleted
+        case downloadsListAllCompleteDownloadsDeleted
+        case downloadsListDeleteUndo
+        case downloadsListSharePressed
+        
+        case downloadsSharingPredownloadedLocalFile
+        
+        case jsAlertShown
+        
+        case featureFlaggingInternalUserAuthenticated
+
+        // MARK: Autofill pixels
+
+        case autofillLoginsSaveLoginModalDisplayed
+        case autofillLoginsSaveLoginModalConfirmed
+        case autofillLoginsSaveLoginModalDismissed
+        case autofillLoginsSaveLoginModalExcludeSiteConfirmed
+
+        case autofillLoginsSaveLoginOnboardingModalDisplayed
+        case autofillLoginsSaveLoginOnboardingModalConfirmed
+        case autofillLoginsSaveLoginOnboardingModalDismissed
+        case autofillLoginsSaveLoginOnboardingModalExcludeSiteConfirmed
+
+        case autofillLoginsSavePasswordModalDisplayed
+        case autofillLoginsSavePasswordModalConfirmed
+        case autofillLoginsSavePasswordModalDismissed
+        
+        case autofillLoginsUpdatePasswordModalDisplayed
+        case autofillLoginsUpdatePasswordModalConfirmed
+        case autofillLoginsUpdatePasswordModalDismissed
+        
+        case autofillLoginsUpdateUsernameModalDisplayed
+        case autofillLoginsUpdateUsernameModalConfirmed
+        case autofillLoginsUpdateUsernameModalDismissed
+        
+        case autofillLoginsFillLoginInlineManualDisplayed
+        case autofillLoginsFillLoginInlineManualConfirmed
+        case autofillLoginsFillLoginInlineManualDismissed
+        
+        case autofillLoginsFillLoginInlineAutopromptDisplayed
+        case autofillLoginsFillLoginInlineAutopromptConfirmed
+        
+        case autofillLoginsFillLoginInlineAuthenticationDeviceDisplayed
+        case autofillLoginsFillLoginInlineAuthenticationDeviceAuthAuthenticated
+        case autofillLoginsFillLoginInlineAuthenticationDeviceAuthFailed
+        case autofillLoginsFillLoginInlineAuthenticationDeviceAuthUnavailable
+        case autofillLoginsFillLoginInlineAuthenticationDeviceAuthCancelled
+        case autofillLoginsAutopromptDismissed
+        
+        case autofillLoginsFillLoginInlineDisableSnackbarShown
+        case autofillLoginsFillLoginInlineDisableSnackbarOpenSettings
+
+        case autofillLoginsSettingsEnabled
+        case autofillLoginsSettingsDisabled
+        case autofillLoginsSettingsResetExcludedDisplayed
+        case autofillLoginsSettingsResetExcludedConfirmed
+        case autofillLoginsSettingsResetExcludedDismissed
+        
+        case autofillLoginsPasswordGenerationPromptDisplayed
+        case autofillLoginsPasswordGenerationPromptConfirmed
+        case autofillLoginsPasswordGenerationPromptDismissed
+
+        case autofillLoginsLaunchWidgetHome
+        case autofillLoginsLaunchWidgetLock
+        case autofillLoginsLaunchAppShortcut
+
+        case autofillLoginsImport
+        case autofillLoginsImportNoPasswords
+        case autofillLoginsImportGetDesktop
+        case autofillLoginsImportSync
+        case autofillLoginsImportNoAction
+        case autofillLoginsImportSuccess
+        case autofillLoginsImportFailure
+
+        case autofillActiveUser
+        case autofillEnabledUser
+        case autofillOnboardedUser
+        case autofillToggledOn
+        case autofillToggledOff
+        case autofillExtensionToggledOn
+        case autofillExtensionToggledOff
+        case autofillLoginsStacked
+        case autofillCreditCardsStacked
+        
+        case autofillDeviceCapabilityDeviceAuthDisabled
+        
+        case autofillSettingsOpened
+
+        case autofillManagementOpened
+        case autofillManagementCopyUsername
+        case autofillManagementCopyPassword
+        case autofillManagementDeleteLogin
+        case autofillManagementDeleteAllLogins
+        case autofillManagementSaveLogin
+        case autofillManagementUpdateLogin
+
+        case autofillLoginsReportFailure
+        case autofillLoginsReportAvailable
+        case autofillLoginsReportConfirmationPromptDisplayed
+        case autofillLoginsReportConfirmationPromptConfirmed
+        case autofillLoginsReportConfirmationPromptDismissed
+
+        case autofillCardsSaveCardInlineDisplayed
+        case autofillCardsSaveCardInlineConfirmed
+        case autofillCardsSaveCardInlineDismissed
+        case autofillCardsFillCardManualInlineDisplayed
+        case autofillCardsFillCardManualInlineConfirmed
+        case autofillCardsFillCardManualInlineDismissed
+        case autofillCardsKeyboardFill
+        case autofillCardsKeyboardOpenSettings
+        case autofillCardsSaveDisableSnackbarShown
+        case autofillCardsSaveDisableSnackbarOpenSettings
+        case autofillCardsSettingsEnabled
+        case autofillCardsSettingsDisabled
+        case autofillCardsManagementOpened
+        case autofillCardsManagementCopyCardNumber
+        case autofillCardsManagementDeleteCard
+        case autofillCardsManagementSaveCard
+        case autofillCardsManagementUpdateCard
+
+        case autofillManagementScreenVisitSurveyAvailable
+
+        case getDesktopCopy
+        case getDesktopShare
+
+        case autofillExtensionEnabled
+        case autofillExtensionDisabled
+        case autofillExtensionWelcomeDismiss
+        case autofillExtensionWelcomeLaunchApp
+        case autofillExtensionQuickTypeConfirmed
+        case autofillExtensionQuickTypeCancelled
+        case autofillExtensionPasswordsOpened
+        case autofillExtensionPasswordsDismissed
+        case autofillExtensionPasswordSelected
+        case autofillExtensionPasswordsSearch
+
+        case autofillExtensionPasswordsPromoDisplayed
+        case autofillExtensionPasswordsPromoConfirmed
+        case autofillExtensionPasswordsPromoDismissed
+        case autofillExtensionInlinePromoDisplayed
+        case autofillExtensionInlinePromoConfirmed
+        case autofillExtensionInlinePromoDismissed
+        case autofillExtensionInlinePromoDismissedPermanently
+
+        case autofillExtensionSettingsTurnOnTapped
+        case autofillExtensionSettingsTurnOffTapped
+        case autofillExtensionSettingsTurnOnSuccess
+        case autofillExtensionSettingsTurnOnThrottled
+        case autofillExtensionSettingsTurnOnCancelled
+        case autofillExtensionSettingsTurnOnFailed
+
+        case autofillJSPixelFired(_ pixel: AutofillUserScript.JSPixel)
+        
+        case secureVaultError
+        
+        case secureVaultInitFailedError
+        case secureVaultFailedToOpenDatabaseError
+        case sharedSecureVaultInitFailed
+        
+        // Replacing secureVaultIsEnabledCheckedWhenEnabledAndBackgrounded with data protection check
+        case secureVaultIsEnabledCheckedWhenEnabledAndDataProtected
+
+        case secureVaultV4Migration
+        case secureVaultV4MigrationSkipped
+
+        case importCredentialsFlowStarted
+        case importCredentialsFlowCancelled
+        case importCredentialsFlowHadCredentials
+        case importCredentialsFlowEnded
+        case importCredentialsPromptNeverAgainClicked
+
+        // MARK: Data Import pixels
+
+        case autofillImportPasswordsImportButtonTapped
+        case autofillImportPasswordsImportButtonShown
+        case autofillImportPasswordsOverflowMenuTapped
+        case bookmarksImportButtonTapped
+        case bookmarksImportButtonShown
+        case bookmarksImportOverflowMenuTapped
+        case importInstructionsDisplayed
+        case importInstructionsFileButtonTapped
+        case importInstructionsToggled
+        case importInstructionsFileSelectedZip
+        case importInstructionsFileSelectedHtml
+        case importInstructionsFileSelectedCsv
+        case importInstructionsCancelled
+        case importPreviewPromptDisplayed
+        case importPreviewPromptConfirmed
+        case importPreviewPromptDismissed
+        case importResultDisplayed
+        case importResultPasswordsSuccess
+        case importResultBookmarksSuccess
+        case importResultCreditCardsSuccess
+        case importResultSyncButtonShown
+        case importResultSyncButtonTapped
+        case importResultPasswordsParsing
+        case importResultBookmarksParsing
+        case importResultUnzipping
+
+        // MARK: Data Import Hub pixels
+
+        case importHubEntryShown
+        case importHubEntryTapped
+        case importHubDisplayed
+        case importHubSourceSelected
+        case importHubCancelled
+        case importHubSourceInstructionsDisplayed
+        case importHubSourceInstructionsCancelled
+        case importHubSourcePrimaryTapped
+        case importHubSourceUploadFileTapped
+        case importHubSafariFileSimulatedCompletion
+        case importHubSafariFileSimulatedFailure
+        case importHubSafariInterstitialDisplayed
+        case importHubSafariInterstitialExportTapped
+        case importHubSafariInterstitialCancelled
+        case importHubBrowserkitRequested
+        case importHubBrowserkitReturnedSuccess
+        case importHubBrowserkitReturnedCancelled
+        case importHubBrowserkitReturnedFailure
+        case importHubFilePickerDisplayed
+        case importHubFilePickedZip
+        case importHubFilePickedCsv
+        case importHubFilePickedHtml
+        case importHubFilePickerCancelled
+        case importHubFilePickerUnsupported
+        case importHubFileErrorDisplayed
+        case importHubResultDisplayed
+        case importHubResultPasswordsSuccess
+        case importHubResultBookmarksSuccess
+        case importHubResultCreditCardsSuccess
+        case importHubResultPasswordsParsing
+        case importHubResultBookmarksParsing
+        case importHubResultUnzipping
+        case importHubResultSyncPromoShown
+        case importHubResultSyncPromoTapped
+        case importHubResultSyncPromoDismissed
+        case importHubResultContinueToSafariPasswordsShown
+        case importHubResultContinueToSafariPasswordsTapped
+        case importHubResultContinueToSafariPasswordsDismissed
+        case importHubResultContinueToSafariBookmarksShown
+        case importHubResultContinueToSafariBookmarksTapped
+        case importHubResultContinueToSafariBookmarksDismissed
+        case importHubResultDoneTapped
+        case importHubSyncOpenSettingsTapped
+        case importHubCredentialExchangeActivityReceived
+        case importHubCredentialExchangeTokenMissing
+        case importHubCredentialExchangeSuccess
+        case importHubCredentialExchangeFailure
+        case importHubCredentialExchangeSimulatedCompletion
+        case importHubCredentialExchangeSimulatedFailure
+
+        // MARK: Ad Click Attribution pixels
+        
+        case adClickAttributionDetected
+        case adClickAttributionActive
+        case adClickAttributionPageLoads
+        
+        // MARK: SERP pixels
+        
+        case serpRequerySame
+        case serpRequeryNew
+        
+        // MARK: Network Protection
+        
+        case networkProtectionActiveUser
+        case networkProtectionNewUser
+
+        case networkProtectionControllerStartAttempt
+        case networkProtectionControllerStartSuccess
+        case networkProtectionControllerStartFailure
+
+        case networkProtectionTunnelStartAttempt
+        case networkProtectionTunnelStartAttemptOnDemandWithoutAccessToken
+        case networkProtectionTunnelStartSuccess
+        case networkProtectionTunnelStartFailure
+        case networkProtectionConnectionFailureLoopDetected
+
+        case networkProtectionTunnelStopAttempt
+        case networkProtectionTunnelStopSuccess
+        case networkProtectionTunnelStopFailure
+
+        case networkProtectionTunnelUpdateAttempt
+        case networkProtectionTunnelUpdateSuccess
+        case networkProtectionTunnelUpdateFailure
+
+        case networkProtectionTunnelWakeFailure
+
+        case networkProtectionEnableAttemptConnecting
+        case networkProtectionEnableAttemptSuccess
+        case networkProtectionEnableAttemptFailure
+
+        case networkProtectionServerMigrationAttempt
+        case networkProtectionServerMigrationAttemptSuccess
+        case networkProtectionServerMigrationAttemptFailure
+
+        case networkProtectionConnectionTesterFailureDetected
+        case networkProtectionConnectionTesterFailureRecovered(failureCount: Int)
+        case networkProtectionConnectionTesterExtendedFailureDetected
+        case networkProtectionConnectionTesterExtendedFailureRecovered(failureCount: Int)
+
+        case networkProtectionTunnelFailureDetected
+        case networkProtectionTunnelFailureRecovered
+
+        case networkProtectionLatency(quality: String)
+        case networkProtectionLatencyError
+        
+        case networkProtectionEnabledOnSearch
+
+        case networkProtectionRekeyAttempt
+        case networkProtectionRekeyFailure
+        case networkProtectionRekeyCompleted
+        
+        case networkProtectionTunnelConfigurationNoServerRegistrationInfo
+        case networkProtectionTunnelConfigurationCouldNotSelectClosestServer
+        case networkProtectionTunnelConfigurationCouldNotGetPeerPublicKey
+        case networkProtectionTunnelConfigurationCouldNotGetPeerHostName
+        case networkProtectionTunnelConfigurationCouldNotGetInterfaceAddressRange
+        
+        case networkProtectionClientFailedToFetchServerList
+        case networkProtectionClientFailedToParseServerListResponse
+        case networkProtectionClientFailedToFetchServerStatus
+        case networkProtectionClientFailedToParseServerStatusResponse
+        case networkProtectionClientFailedToEncodeRegisterKeyRequest
+        case networkProtectionClientFailedToFetchRegisteredServers
+        case networkProtectionClientFailedToParseRegisteredServersResponse
+        case networkProtectionClientFailedToFetchLocations
+        case networkProtectionClientFailedToParseLocationsResponse
+        case networkProtectionClientInvalidAuthToken
+        
+        case networkProtectionKeychainErrorFailedToCastKeychainValueToData
+        case networkProtectionKeychainReadError
+        case networkProtectionKeychainWriteError
+        case networkProtectionKeychainUpdateError
+        case networkProtectionKeychainDeleteError
+        
+        case networkProtectionWireguardErrorCannotLocateTunnelFileDescriptor
+        case networkProtectionWireguardErrorInvalidState
+        case networkProtectionWireguardErrorFailedDNSResolution
+        case networkProtectionWireguardErrorCannotSetNetworkSettings
+        case networkProtectionWireguardErrorCannotStartWireguardBackend
+        case networkProtectionWireguardErrorCannotSetWireguardConfig
+
+        case networkProtectionFailedToLoadFromPreferences
+        case networkProtectionFailedToSaveToPreferences
+        case networkProtectionActivationRequestFailed
+        
+        case networkProtectionDisconnected
+        
+        case networkProtectionNoAccessTokenFoundError
+        case networkProtectionVPNAccessRevoked
+        case networkProtectionUnmanagedSubscriptionError
+
+        case networkProtectionPixelStorageSetupFailure
+        case pixelFireSuppressedStorageError
+
+        case networkProtectionMemoryWarning
+        case networkProtectionMemoryCritical
+        
+        case networkProtectionUnhandledError
+        
+        case networkProtectionGeoswitchingOpened
+        case networkProtectionGeoswitchingSetNearest
+        case networkProtectionGeoswitchingSetCustom
+        case networkProtectionGeoswitchingNoLocations
+
+        case networkProtectionSnoozeEnabledFromStatusMenu
+        case networkProtectionSnoozeDisabledFromStatusMenu
+        case networkProtectionSnoozeDisabledFromLiveActivity
+
+        case networkProtectionFailureRecoveryStarted
+        case networkProtectionFailureRecoveryFailed
+        case networkProtectionFailureRecoveryCompletedHealthy
+        case networkProtectionFailureRecoveryCompletedUnhealthy
+
+        case networkProtectionWidgetConnectAttempt
+        case networkProtectionWidgetConnectSuccess
+        case networkProtectionWidgetConnectCancelled
+        case networkProtectionWidgetConnectFailure
+        case networkProtectionWidgetDisconnectAttempt
+        case networkProtectionWidgetDisconnectSuccess
+        case networkProtectionWidgetDisconnectCancelled
+        case networkProtectionWidgetDisconnectFailure
+
+        case vpnControlCenterConnectAttempt
+        case vpnControlCenterConnectSuccess
+        case vpnControlCenterConnectCancelled
+        case vpnControlCenterConnectFailure
+
+        case vpnControlCenterDisconnectAttempt
+        case vpnControlCenterDisconnectSuccess
+        case vpnControlCenterDisconnectCancelled
+        case vpnControlCenterDisconnectFailure
+
+        case vpnShortcutConnectAttempt
+        case vpnShortcutConnectSuccess
+        case vpnShortcutConnectCancelled
+        case vpnShortcutConnectFailure
+
+        case vpnShortcutDisconnectAttempt
+        case vpnShortcutDisconnectSuccess
+        case vpnShortcutDisconnectCancelled
+        case vpnShortcutDisconnectFailure
+
+        case networkProtectionDNSUpdateCustom
+        case networkProtectionDNSUpdateDefault
+
+        case networkProtectionVPNConfigurationRemoved
+        case networkProtectionVPNConfigurationRemovalFailed
+
+        case networkProtectionConfigurationInvalidPayload(configuration: Configuration)
+
+        case networkProtectionAdapterEndTemporaryShutdownStateAttemptFailure
+        case networkProtectionAdapterEndTemporaryShutdownStateRecoverySuccess
+        case networkProtectionAdapterEndTemporaryShutdownStateRecoveryFailure
+
+        // MARK: - VPN Tips
+
+        case networkProtectionGeoswitchingTipShown
+        case networkProtectionGeoswitchingTipActioned
+        case networkProtectionGeoswitchingTipDismissed
+        case networkProtectionGeoswitchingTipIgnored
+
+        case networkProtectionSnoozeTipShown
+        case networkProtectionSnoozeTipActioned
+        case networkProtectionSnoozeTipDismissed
+        case networkProtectionSnoozeTipIgnored
+
+        case networkProtectionWidgetTipShown
+        case networkProtectionWidgetTipActioned
+        case networkProtectionWidgetTipDismissed
+        case networkProtectionWidgetTipIgnored
+
+        // MARK: remote messaging pixels
+        
+        case remoteMessageShown
+        case remoteMessageShownUnique
+        case remoteMessageDismissed
+        case remoteMessageActionClicked
+        case remoteMessagePrimaryActionClicked
+        case remoteMessageSecondaryActionClicked
+        case remoteMessageSheet
+        case remoteMessageCardShown
+        case remoteMessageCardClicked
+        case remoteMessageImageLoadSuccess
+        case remoteMessageImageLoadFailed
+
+        // MARK: debug pixels
+        case dbCrashDetected(appIdentifier: String?)
+        case dbCrashDetectedDaily(appIdentifier: String?)
+        case crashOnCrashHandlersSetUp
+
+        case crashReportCRCIDMissing
+        case crashReportingSubmissionFailed
+
+        case dbContainerInitializationError
+        case dbInitializationError
+        case dbSaveExcludedHTTPSDomainsError
+        case dbSaveBloomFilterError
+        case dbRemoteMessagingSaveConfigError
+        case dbRemoteMessagingUpdateMessageShownError
+        case dbRemoteMessagingUpdateMessageStatusError
+        case dbLocalAuthenticationError
+        
+        case configurationFetchInfo
+        case couldNotLoadConfiguration(configuration: Configuration, target: Pixel.BuildTarget)
+        case couldNotParseConfiguration(configuration: Configuration, target: Pixel.BuildTarget)
+
+        case trackerDataReloadFailed
+        case fileStoreWriteFailed
+        case fileStoreCoordinatorFailed
+        case privacyConfigurationReloadFailed
+        
+        case contentBlockingCompilationFailed(listType: CompileRulesListType,
+                                              component: ContentBlockerDebugEvents.Component)
+
+        case contentBlockingLookupRulesSucceeded
+        case contentBlockingFetchLRCSucceeded
+        case contentBlockingNoMatchInLRC
+        case contentBlockingLRCMissing
+        
+        case contentBlockingCompilationTaskPerformance(iterationCount: Int, timeBucketAggregation: CompileTimeBucketAggregation)
+        case ampBlockingRulesCompilationFailed
+
+        case webKitDidTerminate
+        case webKitTerminationDidReloadCurrentTab
+        case webKitDidTerminateDuringWarmup
+
+        case webKitWarmupUnexpectedDidFinish
+        case webKitWarmupUnexpectedDidTerminate
+
+        case backgroundTaskSubmissionFailed
+        
+        case blankOverlayNotDismissed
+        
+        case cookieDeletionTime(_ time: BucketAggregation)
+        case cookieDeletionLeftovers
+        case clearDataInDefaultPersistence(_ time: BucketAggregation)
+
+        case webkitWarmupStart(appState: String)
+        case webkitWarmupFinished(appState: String)
+
+        case cachedTabPreviewsExceedsTabCount
+        case cachedTabPreviewRemovalError
+        
+        case missingDownloadedFile
+        
+        case compilationResult(result: CompileRulesResult, waitTime: BucketAggregation, appState: AppState)
+        
+        case emailAutofillKeychainError
+        
+        case adAttributionGlobalAttributedRulesDoNotExist
+        case adAttributionCompilationFailedForAttributedRulesList
+        
+        case adAttributionLogicUnexpectedStateOnInheritedAttribution
+        case adAttributionLogicUnexpectedStateOnRulesCompiled
+        case adAttributionLogicUnexpectedStateOnRulesCompilationFailed
+        case adAttributionDetectionHeuristicsDidNotMatchDomain
+        case adAttributionDetectionInvalidDomainInParameter
+        case adAttributionLogicRequestingAttributionTimedOut
+        case adAttributionLogicWrongVendorOnSuccessfulCompilation
+        case adAttributionLogicWrongVendorOnFailedCompilation
+
+        case debugTabSwitcherDidChangeInvalidState
+        case debugTabsModelCrossModeMismatch
+
+        case debugBookmarksInitialStructureQueryFailed
+        case debugBookmarksStructureLost
+        
+        case debugAppDelegateInitToLaunchTime
+        case debugBookmarksStructureNotRecovered
+        case debugBookmarksInvalidRoots
+        case debugBookmarksValidationFailed
+
+        case debugBookmarksNoDBSchemeFound
+        case debugBookmarksUnableToLoadPersistentStores
+        case debugBookmarksErrorCreatingTopLevelBookmarksFolder
+        case debugBookmarksErrorCreatingTopLevelFavoritesFolder
+        case debugBookmarksCouldNotFixBookmarkFolder
+        case debugBookmarksCouldNotFixFavoriteFolder
+        case debugBookmarksCouldNotPrepareDBStructure
+        case debugBookmarksCouldNotWriteToDB
+        case debugBookmarksCouldNotGetFavoritesOrder
+        case debugBookmarksCouldNotPrepareDatabase
+        case debugBookmarksTopFolderSaveFailed
+
+        case debugBookmarksPendingDeletionFixed
+        case debugBookmarksPendingDeletionRepairError
+
+        case debugCannotClearObservationsDatabase
+        case debugWebsiteDataStoresNotClearedMultiple
+        case debugWebsiteDataStoresNotClearedOne
+        case debugWebsiteDataStoresCleared
+        case fireRemoveAllContainersAfterDelaySuccess
+        case fireRemoveAllContainersAfterDelayFailure
+
+        case debugBookmarksMigratedMoreThanOnce
+
+        case debugBreakageExperiment
+
+        case debugWebViewInVisibleTabHidden
+
+        case debugPromptCoordinationFailedToSaveLastPresentationDate
+        case debugPromptCoordinationFailedToRetrieveLastPresentationDate
+
+        // Return user measurement
+        case debugReturnUserAddATB
+        case debugReturnUserUpdateATB
+
+        // Errors from Bookmarks Module
+        case bookmarkFolderExpected
+        case bookmarksListIndexNotMatchingBookmark
+        case bookmarksListMissingFolder
+        case editorNewParentMissing
+        case favoritesListIndexNotMatchingBookmark
+        case fetchingRootItemFailed(BookmarksModelError.ModelType)
+        case indexOutOfRange(BookmarksModelError.ModelType)
+        case saveFailed(BookmarksModelError.ModelType)
+        case missingParent(BookmarksModelError.ObjectType)
+        
+        case bookmarksCouldNotLoadDatabase
+        case bookmarksCouldNotPrepareDatabase
+        case bookmarksCouldNotMigrateDatabase
+        case bookmarksMigrationAlreadyPerformed
+        case bookmarksMigrationFailed
+        case bookmarksMigrationCouldNotPrepareDatabase
+        case bookmarksMigrationCouldNotPrepareDatabaseOnFailedMigration
+        case bookmarksMigrationCouldNotRemoveOldStore
+        case bookmarksMigrationCouldNotPrepareMultipleFavoriteFolders
+
+        case bookmarksOpenFromToolbar
+        case syncSignupDirect
+        case syncSignupConnect
+        case syncLogin
+        case syncDaily
+        case syncDisabled
+        case syncDisabledAndDeleted
+        case syncDuckAddressOverride
+        case syncSuccessRateDaily
+        case syncLocalTimestampResolutionTriggered(Feature)
+        case syncAiChatActiveDaily
+        case syncMigratedToFileStore
+        case syncFailedToMigrateToFileStore
+        case syncFailedToInitFileStore
+        case syncFailedToLoadAccount
+        case syncFailedToSetupEngine
+        case syncBookmarksObjectLimitExceededDaily
+        case syncCredentialsObjectLimitExceededDaily
+        case syncCreditCardsObjectLimitExceededDaily
+        case syncAiChatsObjectLimitExceededDaily
+        case syncBookmarksRequestSizeLimitExceededDaily
+        case syncCredentialsRequestSizeLimitExceededDaily
+        case syncCreditCardsRequestSizeLimitExceededDaily
+        case syncAiChatsRequestSizeLimitExceededDaily
+        case syncBookmarksTooManyRequestsDaily
+        case syncCredentialsTooManyRequestsDaily
+        case syncCreditCardsTooManyRequestsDaily
+        case syncSettingsTooManyRequestsDaily
+        case syncAiChatsTooManyRequestsDaily
+        case syncBookmarksValidationErrorDaily
+        case syncCredentialsValidationErrorDaily
+        case syncCreditCardsValidationErrorDaily
+        case syncSettingsValidationErrorDaily
+        case syncAiChatsValidationErrorDaily
+
+        case syncSentUnauthenticatedRequest
+        case syncMetadataCouldNotLoadDatabase
+        case syncBookmarksFailed
+        case syncBookmarksPatchCompressionFailed
+        case syncCredentialsProviderInitializationFailed
+        case syncCredentialsFailed
+        case syncCredentialsPatchCompressionFailed
+        case syncCreditCardsProviderInitializationFailed
+        case syncCreditCardsFailed
+        case syncCreditCardsPatchCompressionFailed
+        case syncSettingsFailed
+        case syncSettingsMetadataUpdateFailed
+        case syncSettingsPatchCompressionFailed
+        case syncAiChatsFailed
+        case syncAiChatsPatchCompressionFailed
+        case syncSignupError
+        case syncLoginError
+        case syncLogoutError
+        case syncUpdateDeviceError
+        case syncRemoveDeviceError
+        case syncDeleteAccountError
+        case syncLoginExistingAccountError
+        case syncSecureStorageReadError
+        case syncSecureStorageDecodingError
+        case syncAccountRemoved(reason: String)
+
+        case syncAskUserToSwitchAccount
+        case syncUserAcceptedSwitchingAccount
+        case syncUserCancelledSwitchingAccount
+        case syncUserSwitchedAccount
+        case syncUserSwitchedLogoutError
+        case syncUserSwitchedLoginError
+
+        case syncGetOtherDevices
+        case syncGetOtherDevicesCopy
+        case syncGetOtherDevicesShare
+
+        case syncPromoDisplayed
+        case syncPromoConfirmed
+        case syncPromoDismissed
+
+        case syncRecoveryPromptDisplayed
+        case syncRecoveryPromptSyncWithAnotherDeviceTapped
+        case syncRecoveryPromptShowAlternativesTapped
+        case syncRecoveryPromptDismissed
+
+        case syncRecoveryAlternativeDisplayed
+        case syncRecoveryAlternativeScanRecoveryCodeTapped
+        case syncRecoveryAlternativeBackupThisDeviceTapped
+        case syncRecoveryAlternativeDismissed
+
+        case syncAutoRestoreOnboardingPromptShownUnique
+        case syncAutoRestoreOnboardingRestoreTappedUnique
+        case syncAutoRestoreOnboardingSkipTappedUnique
+
+        case syncAutoRestoreToggleShown
+        case syncAutoRestoreToggleOptedOut
+
+        case syncAutoRestoreSettingsReadyShown
+        case syncAutoRestoreSettingsRestoreTapped
+        case syncAutoRestoreSettingsSkipRestoreTapped
+        case syncAutoRestoreSettingsCancelled
+        case syncAutoRestoreSettingsManualRecoveryShown
+
+        case syncAutoRestoreSettingsPageShown
+        case syncAutoRestoreSettingsPageToggleEnabled
+        case syncAutoRestoreSettingsPageToggleDisabled
+
+        case syncAutoRestoreSuccess
+        case syncAutoRestoreFailure
+        case syncAutoRestorePreservedAccountCleared
+        case syncAutoRestorePreservedAccountClearFailed
+
+        case syncSetupBarcodeScreenShown
+        case syncSetupBarcodeScannerSuccess
+        case syncSetupBarcodeScannerFailed
+        case syncSetupBarcodeCodeCopied
+        case syncSetupManualCodeEntryScreenShown
+        case syncSetupManualCodeEnteredSuccess
+        case syncSetupManualCodeEnteredFailed
+        case syncSetupEndedAbandoned
+        case syncSetupEndedSuccessful
+        case syncSetupDeepLinkFlowStarted
+        case syncSetupDeepLinkFlowSuccess
+        case syncSetupDeepLinkFlowAbandoned
+        case syncSetupDeepLinkFlowTimeout
+
+        case swipeTabsUsedDaily
+        case swipeToOpenNewTab
+
+        case temporaryTelemetrySettingsClearDataAnimation(animation: String)
+        case temporaryTelemetrySettingsCustomizedAddressBarButton(button: String)
+        case temporaryTelemetrySettingsCustomizedToolbarButton(button: String)
+
+        case bookmarksCleanupFailed
+        case bookmarksCleanupAttemptedWhileSyncWasEnabled
+        case favoritesCleanupFailed
+        case bookmarksFaviconsFetcherStateStoreInitializationFailed
+        case bookmarksFaviconsFetcherFailed
+        
+        case credentialsDatabaseCleanupFailed
+        case credentialsCleanupAttemptedWhileSyncWasEnabled
+        
+        case creditCardsDatabaseCleanupFailed
+        case creditCardsCleanupAttemptedWhileSyncWasEnabled
+
+        case invalidPayload(Configuration)
+        
+        case emailIncontextPromptDisplayed
+        case emailIncontextPromptConfirmed
+        case emailIncontextPromptDismissed
+        case emailIncontextPromptDismissedPersistent
+        case emailIncontextModalDisplayed
+        case emailIncontextModalDismissed
+        case emailIncontextModalExitEarly
+        case emailIncontextModalExitEarlyContinue
+        
+        case compilationFailed
+
+        case protectionToggledOffBreakageReport
+        case toggleProtectionsDailyCount
+        case toggleReportDoNotSend
+        case toggleReportDismiss
+
+        case pageRefreshThreeTimesWithin20Seconds
+
+        case siteNotWorkingShown
+        case siteNotWorkingWebsiteIsBroken
+
+        /**
+         * Event Trigger: BrowserServicesKit.UserScript.loadJS fails to load the contents of a JS file.
+         *
+         * Anomaly Investigation:
+         * - App crashes after this pixel is fired.
+         * - Useful for investigating the underlying error causing the failure.
+         */
+        case userScriptLoadJSFailed
+
+        // MARK: - Default Browser
+
+        // Set As Default Browser Debug Pixels
+        // Privacy Triage: https://app.asana.com/0/1206329551987282/1209505775591500
+
+        /// Fired when a successful result (either true or false) is returned from [isDefault(.webBrowser)](https://developer.apple.com/documentation/UIKit/UIApplication/isDefault(_:)) method.
+        case debugSetAsDefaultBrowserSuccessfulResult
+
+        /// Fired when an error with domain `UIApplicationCategoryDefaultErrorDomain` and code `rateLimited` is thrown from [isDefault(.webBrowser)](https://developer.apple.com/documentation/UIKit/UIApplication/isDefault(_:)) method.
+        case debugSetAsDefaultBrowserMaxNumberOfAttemptsFailure
+
+        /// Fired when an error with domain `UIApplicationCategoryDefaultErrorDomain` and code `rateLimited` is thrown from [isDefault(.webBrowser)](https://developer.apple.com/documentation/UIKit/UIApplication/isDefault(_:)) method
+        /// and we don’t have a persisted version of the previous result.
+        case debugSetAsDefaultBrowserMaxNumberOfAttemptsNoExistingResultPersistedFailure
+
+        /// Fired when a generic error is thrown from [isDefault(.webBrowser)](https://developer.apple.com/documentation/UIKit/UIApplication/isDefault(_:)) method.
+        case debugSetAsDefaultBrowserUnknownFailure
+
+        // Default Browser Prompt Pixels
+        // Privacy Triage: https://app.asana.com/1/137249556945/project/69071770703008/task/1210702713778212
+
+        /// Fired when it is not possible to retrieve from the persistence store the number of active days for a user.
+        case debugDefaultBrowserPromptFailedToRetrieveCurrentActivity
+        /// Fired when it is not possible to save in the persistence store the number of active days of users.
+        case debugDefaultBrowserPromptFailedToSaveCurrentActivity
+        /// Fired when it is not possible to retrieve from the persistence store the date when last modal was shown.
+        case debugDefaultBrowserPromptFailedToRetrieveLastModalShownDate
+        /// Fired when it is not possible to save  in the persistence store the date when last modal was shown.
+        case debugDefaultBrowserPromptFailedToSaveLastModalShownDate
+        /// Fired when it is not possible to retrieve from the persistence store the number of modal shown.
+        case debugDefaultBrowserPromptFailedToRetrieveModalShownOccurrences
+        /// Fired when it is not possible to save in the persistence store the number of modal shown.
+        case debugDefaultBrowserPromptFailedToSaveModalShownOccurrences
+        /// Fired when it is not possible to retrieve from the persistence store the flag indicating whether the modal was permanently dismissed.
+        case debugDefaultBrowserPromptFailedToRetrievePermanentlyDismissedPrompt
+        /// Fired when it is not possible to save in the persistence store the flag indicating whether the modal was permanently dismissed.
+        case debugDefaultBrowserPromptFailedToSavePermanentlyDismissedPrompt
+        /// Fired when it is not possible to retrieve from the persistence store the type of user.
+        case debugDefaultBrowserPromptFailedToRetrieveUserType
+        /// Fired when it is not possible to save from the persistence store the type of user.
+        case debugDefaultBrowserPromptFailedToSaveUserType
+        /// Fired when it is not possible to retrieve from the persistence store whether the inactive user modal was shown.
+        case debugDefaultBrowserPromptFailedToRetrieveInactiveModalShown
+        /// Fired when it is not possible to save from the persistence store that the inactive user modal was shown.
+        case  debugDefaultBrowserPromptFailedToSaveInactiveModalShown
+
+        /// Fired when the SAD modal sheet appears on screen.
+        case defaultBrowserPromptModalShown
+        /// Fired when the “Close” button of the SAD modal sheet is tapped.
+        case defaultBrowserPromptModalClosedButtonTapped
+        /// Fired when the “Set As Default Browser" button of the SAD modal sheet is tapped.
+        case defaultBrowserPromptModalSetAsDefaultBrowserButtonTapped
+        /// Fired when the “Don’t ask again” button of the SAD modal sheet is tapped.
+        case defaultBrowserPromptModalDoNotAskAgainButtonTapped
+        /// Fired when the SAD modal sheet for inactive users appears on screen.
+        case defaultBrowserPromptInactiveUserModalShown
+        /// Fired when the “Close” button of the SAD modal sheet for inactive users is tapped.
+        case defaultBrowserPromptInactiveUserModalClosedButtonTapped
+        /// Fired when the “Set As Default Browser" button of the SAD modal sheet for inactive users is tapped.
+        case defaultBrowserPromptInactiveUserModalSetAsDefaultBrowserButtonTapped
+        /// Fired when "Plus even more protections..." button of the SAD modal sheet for inactive users is tapped.
+        case defaultBrowserPromptInactiveUserModalMoreProtectionsButtonTapped
+
+        /// Fired when creating the app configurationuser defaults in ai chat settings migration failed.
+        case debugFailedToCreateAppConfigurationUserDefaultsInAIChatSettingsMigration
+
+        // MARK: History
+        case historyStoreLoadFailed
+        case historyRemoveFailed
+        case historyReloadFailed
+        case historyCleanEntriesFailed
+        case historyCleanVisitsFailed
+        case historySaveFailed
+        case historyInsertVisitFailed
+        case historyRemoveVisitsFailed
+        case historyLoadTabHistoryFailed
+        case historyInsertTabHistoryFailed
+        case historyRemoveTabHistoryFailed
+        case historyCleanOrphanedTabHistoryFailed
+
+        // MARK: Subscription
+        case subscriptionOfferScreenImpression
+        case subscriptionPurchaseAttempt
+        case subscriptionPurchaseFailureOther
+        case subscriptionPurchaseFailureStoreError
+        case subscriptionPurchaseFailureBackendError
+        case subscriptionPurchaseFailureAccountNotCreated
+        case subscriptionPurchaseSuccess
+        case subscriptionRestorePurchaseOfferPageEntry
+        case subscriptionRestorePurchaseClick
+        case subscriptionRestorePurchaseEmailStart
+        case subscriptionRestorePurchaseStoreStart
+        case subscriptionRestorePurchaseEmailSuccess
+        case subscriptionRestorePurchaseStoreSuccess
+        case subscriptionRestorePurchaseStoreFailureNotFound
+        case subscriptionRestorePurchaseStoreFailureOther
+        case subscriptionRestoreAfterPurchaseAttempt
+        case subscriptionActivated
+        case subscriptionWelcomeAddDevice
+        case subscriptionWelcomeVPN
+        case subscriptionWelcomePersonalInformationRemoval
+        case subscriptionWelcomeAIChat
+        case subscriptionWelcomeIdentityRestoration
+        case ddgSubscriptionSettings
+        case subscriptionVPNSettings
+        case subscriptionPersonalInformationRemovalSettings
+        case subscriptionIdentityRestorationSettings
+        case ddgSubscriptionManagementEmail
+        case ddgSubscriptionManagementPlanBilling
+        case ddgSubscriptionManagementRemoval
+        case subscriptionSuccessfulSubscriptionAttribution
+        case subscriptionKeychainAccessError
+        // Auth
+        case subscriptionAuthV2GetTokensError2
+
+        case settingsSubscriptionAccountWithNoSubscriptionFound
+
+        case subscriptionActivatingRestoreErrorMissingAccountOrTransactions
+        case subscriptionActivatingRestoreErrorPastTransactionAuthenticationError
+        case subscriptionActivatingRestoreErrorFailedToObtainAccessToken
+        case subscriptionActivatingRestoreErrorFailedToFetchAccountDetails
+        case subscriptionActivatingRestoreErrorFailedToFetchSubscriptionDetails
+        case subscriptionActivatingRestoreErrorSubscriptionExpired
+
+        /**
+         * Event Trigger: The Subscription onboarding promotion is displayed to the user
+         *
+         * Anomaly Investigation:
+         * - This should only be fired during app onboarding. See `OnboardingSubscriptionPromotionHelper`
+         */
+        case subscriptionOnboardingPromotionImpression
+
+        /**
+         * Event Trigger: The user tapped the 'Learn More' button on the Subscription onboarding promotion
+         *
+         * Anomaly Investigation:
+         * - This should only be fired during app onboarding. See `OnboardingSubscriptionPromotionHelper`
+         */
+        case subscriptionOnboardingPromotionTap
+
+        /**
+         * Event Trigger: The user tapped the 'Skip' button on the Subscription onboarding promotion
+         *
+         * Anomaly Investigation:
+         * - This should only be fired during app onboarding. See `OnboardingSubscriptionPromotionHelper`
+         */
+        case subscriptionOnboardingPromotionDismiss
+
+        /**
+         * Event Trigger: The subscription promotion modal is shown to a returning user who skipped onboarding
+         *
+         * Anomaly Investigation:
+         * - This should only be fired from `SubscriptionPromoCoordinator`
+         */
+        case subscriptionSkippedOnboardingPromotionImpression
+
+        /**
+         * Event Trigger: The user tapped the CTA on the skipped-onboarding subscription promotion modal
+         *
+         * Anomaly Investigation:
+         * - This should only be fired from `SubscriptionPromoCoordinator`
+         */
+        case subscriptionSkippedOnboardingPromotionTap
+
+        /**
+         * Event Trigger: The user dismissed the skipped-onboarding subscription promotion modal
+         *
+         * Anomaly Investigation:
+         * - This should only be fired from `SubscriptionPromoCoordinator`
+         */
+        case subscriptionSkippedOnboardingPromotionDismiss
+
+        // Win-back Offer
+        case subscriptionWinBackOfferLaunchPromptShown
+        case subscriptionWinBackOfferLaunchPromptCTAClicked
+        case subscriptionWinBackOfferLaunchPromptDismissed
+
+        case subscriptionWinBackOfferSettingsLoggedOutOfferShown
+        case subscriptionWinBackOfferSettingsLoggedOutOfferCTAClicked
+        case subscriptionWinBackOfferSettingsLoggedInOfferShown
+
+        case subscriptionWinBackOfferSubscriptionSettingsShown
+        case subscriptionWinBackOfferSubscriptionSettingsCTAClicked
+
+        // Free Trial Journey
+        case privacyProFreeTrialStart
+        case privacyProFreeTrialVPNActivation
+        case privacyProFreeTrialPIRActivation
+        case privacyProFreeTrialDuckAIActivation
+
+        // MARK: Pixel Experiment
+        case pixelExperimentEnrollment
+
+        // MARK: Settings
+        case settingsPresented
+        case settingsSetAsDefault
+        case settingsVoiceSearchOn
+        case settingsVoiceSearchOff
+        case settingsWebTrackingProtectionOpen
+        case settingsGpcOn
+        case settingsGpcOff
+        case settingsGeneralAutocompleteOn
+        case settingsGeneralAutocompleteOff
+        case settingsPrivateSearchAutocompleteOn
+        case settingsPrivateSearchAutocompleteOff
+        case settingsRecentlyVisitedOn
+        case settingsRecentlyVisitedOff
+        case settingsAddressBarSelectorPressed
+        case settingsAccessibilityOpen
+        case settingsAccessiblityTextZoom
+
+        case settingsPrivateSearchOpen
+        case settingsEmailProtectionOpen
+        case settingsEmailProtectionEnable
+        case settingsGeneralOpen
+        case settingsSyncOpen
+        case settingsAppearanceOpen
+        case settingsThemeSelectorPressed
+        case settingsAddressBarTopSelected
+        case settingsAddressBarBottomSelected
+        case settingsShowFullURLOn
+        case settingsShowFullURLOff
+        case settingsTrackerCountInAddressBarToggled
+        case settingsTrackerCountInTabSwitcherToggled
+        case tabSwitcherTrackerCountHidden
+        case settingsDataClearingOpen
+        case settingsFireButtonSelectorPressed
+        case settingsDataClearingClearDataOpen
+        case settingsAutomaticallyClearDataOn
+        case settingsAutomaticallyClearDataOff
+        case settingsAutomaticDataClearingOptionsUpdated
+        case settingsNextStepsAddAppToDock
+        case settingsNextStepsAddWidget
+        case settingsMoreSearchSettings
+        case settingsRefreshButtonPositionAddressBar
+        case settingsRefreshButtonPositionMenu
+        case settingsWhatsNewOpen
+        case settingsAutoplayOpen
+        case settingsAutoplayChanged
+
+        /// [Privacy Triage](https://app.asana.com/1/137249556945/project/69071770703008/task/1210619010364082)
+        case settingsOpenAssistSettings
+
+        /// [Privacy Triage](https://app.asana.com/1/137249556945/project/69071770703008/task/1210068471808737)
+        case settingsPresentedFromMenu
+
+        // Web pixels
+        case subscriptionOfferMonthlyPriceClick
+        case subscriptionOfferYearlyPriceClick
+        case subscriptionAddEmailSuccess
+        case subscriptionWelcomeFAQClick
+        
+        // Tier Options
+        case subscriptionTierOptionsRequested
+        case subscriptionTierOptionsSuccess
+        case subscriptionTierOptionsFailure
+        case subscriptionTierOptionsUnexpectedProTier
+
+        // Plan Change
+        case subscriptionViewAllPlansClick
+        case subscriptionUpgradeClick
+        case subscriptionCancelPendingDowngradeClick
+
+        // MARK: Apple Ad Attribution
+        case appleAdAttribution
+
+        // MARK: Secure Vault
+        case secureVaultL1KeyMigration
+        case secureVaultL2KeyMigration
+        case secureVaultL2KeyPasswordMigration
+
+        // MARK: Report broken site flows
+        case reportBrokenSiteShown
+        case reportBrokenSiteSent
+
+        // MARK: New Tab Page baseline engagement
+        case addFavoriteDaily
+        case addBookmarkDaily
+        case favoriteLaunchedNTPDaily
+        case bookmarkLaunchedDaily
+        case newTabPageDisplayedDaily
+
+        // MARK: NTP after idle
+        case ntpAfterIdleNTPShownAfterIdle
+        case ntpAfterIdleNTPShownUserInitiated
+        case ntpAfterIdleReturnToPageTappedAfterIdle
+        case ntpAfterIdleReturnToPageTappedUserInitiated
+        case ntpAfterIdleBarUsedAfterIdle
+        case ntpAfterIdleBarUsedUserInitiated
+        case ntpAfterIdleToggleUsedAfterIdle
+        case ntpAfterIdleToggleUsedUserInitiated
+        case ntpAfterIdleBackButtonUsedAfterIdle
+        case ntpAfterIdleBackButtonUsedUserInitiated
+        case ntpAfterIdleAppBackgroundedAfterIdle
+        case ntpAfterIdleAppBackgroundedUserInitiated
+        case ntpAfterIdleTabSwitcherSelectedAfterIdle
+        case ntpAfterIdleTabSwitcherSelectedUserInitiated
+        case ntpAfterIdleSettingChangedToNewTab
+        case ntpAfterIdleSettingChangedToLastUsedTab
+
+        // MARK: DuckPlayer
+
+        /// [Privacy Triage](https://app.asana.com/1/137249556945/project/69071770703008/task/1210068471808737)
+        case duckPlayerSettingsOpen
+
+        case duckPlayerDailyUniqueView
+        case duckPlayerViewFromYoutubeViaMainOverlay
+        case duckPlayerViewFromYoutubeViaHoverButton
+        case duckPlayerViewFromYoutubeAutomatic
+        case duckPlayerViewFromSERP
+        case duckPlayerViewFromOther
+        case duckPlayerOverlayYoutubeImpressions
+        case duckPlayerLandscapeLayoutImpressions
+        case duckPlayerOverlayYoutubeWatchHere
+        case duckPlayerSettingAlwaysDuckPlayer
+        case duckPlayerSettingAlwaysSettings
+        case duckPlayerSettingNeverSettings
+        case duckPlayerSettingBackToDefault
+        case duckPlayerSettingsAlwaysOverlaySERP
+        case duckPlayerSettingsAlwaysOverlayYoutube
+        case duckPlayerSettingsNeverOverlaySERP
+        case duckPlayerSettingsNeverOverlayYoutube
+        case duckPlayerWatchOnYoutube
+        case duckPlayerSettingAlwaysOverlayYoutube
+        case duckPlayerSettingNeverOverlayYoutube
+        case duckPlayerContingencySettingsDisplayed
+        case duckPlayerContingencyLearnMoreClicked
+        case duckPlayerNewTabSettingOn
+        case duckPlayerNewTabSettingOff
+        case duckPlayerYouTubeSignInErrorImpression
+        case duckPlayerYouTubeAgeRestrictedErrorImpression
+        case duckPlayerYouTubeNoEmbedErrorImpression
+        case duckPlayerYouTubeUnknownErrorImpression
+        case duckPlayerYouTubeSignInErrorDaily
+        case duckPlayerYouTubeAgeRestrictedErrorDaily
+        case duckPlayerYouTubeNoEmbedErrorDaily
+        case duckPlayerYouTubeUnknownErrorDaily
+        case duckPlayerNativeYouTubeSignInErrorImpression
+        case duckPlayerNativeYouTubeAgeRestrictedErrorImpression
+        case duckPlayerNativeYouTubeNoEmbedErrorImpression
+        case duckPlayerNativeYouTubeUnknownErrorImpression
+        case duckPlayerNativeYouTubeSignInErrorDaily
+        case duckPlayerNativeYouTubeAgeRestrictedErrorDaily
+        case duckPlayerNativeYouTubeNoEmbedErrorDaily
+        case duckPlayerNativeYouTubeUnknownErrorDaily
+
+        // MARK: enhanced statistics
+        case usageSegments
+
+        // MARK: Certificate warnings
+        case certificateWarningDisplayed(_ errorType: String)
+        case certificateWarningLeaveClicked
+        case certificateWarningAdvancedClicked
+        case certificateWarningProceedClicked
+
+        // MARK: Unified Feedback Form
+        case pproFeedbackFeatureRequest(description: String, source: String)
+        case pproFeedbackGeneralFeedback(description: String, source: String)
+        case pproFeedbackReportIssue(source: String, category: String, subcategory: String, description: String, metadata: String)
+        case pproFeedbackFormShow
+        case pproFeedbackActionsScreenShow(source: String)
+        case pproFeedbackCategoryScreenShow(source: String, reportType: String)
+        case pproFeedbackSubcategoryScreenShow(source: String, reportType: String, category: String)
+        case pproFeedbackSubmitScreenShow(source: String, reportType: String, category: String, subcategory: String)
+        case pproFeedbackSubmitScreenFAQClick(source: String, reportType: String, category: String, subcategory: String)
+
+        // MARK: WebView Error Page Shown
+        case webViewErrorPageShown
+
+        // MARK: External Scheme Navigation
+        case webViewExternalSchemeNavigationXSafariHTTPSStay
+        case webViewExternalSchemeNavigationXSafariHTTPSOpenInSafari
+        case webViewExternalSchemeNavigationXSafariHTTPSLoopDetected
+        case webViewExternalSchemeNavigationXSafariHTTPSLoopOpenInSafari
+
+        // MARK: Browsing
+        case stopPageLoad
+
+        // MARK: Launch time
+        case appDidFinishLaunchingTime(time: BucketAggregation)
+        case appDidShowUITime(time: BucketAggregation)
+
+        // MARK: AI Chat
+        case aiChatNoRemoteSettingsFound(settings: String)
+        case openAIChatFromAddressBar
+        case openAIChatFromWidgetFavorite
+        case openAIChatFromWidgetQuickAction
+        case openAIChatFromWidgetControlCenter
+        case openAIChatFromWidgetLockScreenComplication
+        case openAIChatFromIconShortcut
+        case openAIChatFromTabManager
+
+        case voiceEntryPointTapped
+        case voiceSessionStarted
+
+        case aiChatSettingsVoiceTurnedOff
+        case aiChatSettingsVoiceTurnedOn
+        case aiChatSettingsAddressBarTurnedOff
+        case aiChatSettingsAddressBarTurnedOn
+        case aiChatSettingsSearchInputTurnedOff
+        case aiChatSettingsSearchInputTurnedOn
+        case aiChatSettingsBrowserMenuTurnedOff
+        case aiChatSettingsBrowserMenuTurnedOn
+        case aiChatSettingsTabManagerTurnedOff
+        case aiChatSettingsTabManagerTurnedOn
+        case aiChatSettingsChatSuggestionsTurnedOff
+        case aiChatSettingsChatSuggestionsTurnedOn
+        case aiChatSettingsDisplayed
+        case aiChatSettingsEnabled
+        case aiChatSettingsDisabled
+        case aiChatSettingsAutoContextEnabled
+        case aiChatSettingsAutoContextDisabled
+        case aiChatSettingsDefaultTogglePositionChanged
+
+        case aiChatOpen
+        case aiChatMetricStartNewConversation
+        case aiChatMetricStartNewConversationButtonClicked
+        case aiChatMetricOpenHistory
+        case aiChatMetricOpenMostRecentHistoryChat
+        case aiChatMetricSentPromptOngoingChat
+        case aiChatMetricDuckAIKeyboardReturnPressed
+        case aiChatInternalSwitchBarDisplayed
+        case aiChatExperimentalAddressBarIsEnabledDaily
+        case aiChatContextualAutoAttachDAU
+        case aiChatIsEnabledDaily
+
+        case duckAiNativeStorageMigrationDoneUnique(key: String)
+        case duckAiNativeStorageMigrationDoneCount(key: String)
+        case duckAiNativeStorageMigrationDoneBlankCount
+
+        case duckAiNativeStorageInitSuccess
+        case duckAiNativeStorageInitError
+        case duckAiNativeStorageMigrationStarted
+        case duckAiNativeStorageMigrationAlreadyDone
+        case duckAiNativeStorageMigrationError
+        case duckAiNativeStorageSettingsPutError
+        case duckAiNativeStorageSettingsGetError
+        case duckAiNativeStorageSettingsDeleteError
+        case duckAiNativeStorageChatPutError
+        case duckAiNativeStorageChatGetError
+        case duckAiNativeStorageChatDeleteError
+        case duckAiNativeStorageFilePutError
+        case duckAiNativeStorageFileGetError
+        case duckAiNativeStorageFileListError
+        case duckAiNativeStorageFileDeleteError
+
+        case aiChatOmnibarSidebarButtonTapped
+        case aiChatOmnibarNewChatButtonTapped
+        
+        case aiChatSettingsMenuOpened
+        case aiChatSettingsMenuSidebarTapped
+        case aiChatSettingsMenuAIChatSettingsTapped
+        case aiChatSettingsMenuNewChatTabTapped
+        
+        case aiChatTabSwitcherOpened
+        case aiChatFireButtonTapped
+
+        // MARK: AI Chat Sync
+
+        case aiChatSyncScopedSyncTokenError
+        case aiChatSyncEncryptionError
+        case aiChatSyncDecryptionError
+        case aiChatSyncHistoryEnabledError
+        case aiChatTermsAcceptedDuplicateSyncOff
+        case aiChatTermsAcceptedDuplicateSyncOn
+
+        // MARK: New Address Bar Picker
+        case aiChatNewAddressBarPickerDisplayed
+        case aiChatNewAddressBarPickerConfirmed
+        case aiChatNewAddressBarPickerNotNow
+        
+        // MARK: Experimental Omnibar Metrics
+        case aiChatExperimentalOmnibarShown
+        case aiChatExperimentalOmnibarPromptSubmitted
+        case aiChatExperimentalOmnibarQuerySubmitted
+        case aiChatExperimentalOmnibarModeSwitched
+        case aiChatExperimentalOmnibarSessionBothModes
+        case aiChatExperimentalOmnibarFirstSettingsViewed
+        case aiChatExperimentalOmnibarFirstEnabled
+        case aiChatExperimentalOmnibarFirstInteraction
+        case aiChatExperimentalOmnibarFirstSearchSubmission
+        case aiChatExperimentalOmnibarFirstPromptSubmission
+        case aiChatExperimentalOmnibarFullConversionUser
+        case aiChatExperimentalOmnibarTextAreaFocused
+        case aiChatExperimentalOmnibarClearButtonPressed
+        case aiChatExperimentalOmnibarBackButtonPressed
+        case aiChatExperimentalOmnibarKeyboardGoPressed
+        case aiChatExperimentalOmnibarFloatingSubmitPressed
+        case aiChatExperimentalOmnibarFloatingReturnPressed
+        case aiChatExperimentalOmnibarSessionSummary
+        case aiChatExperimentalOmnibarDailyRetention
+        case aiChatLegacyOmnibarShown
+        case aiChatLegacyOmnibarQuerySubmitted
+        case aiChatLegacyOmnibarAichatButtonPressed
+        case aiChatLegacyOmnibarBackButtonPressed
+
+        // MARK: iPad Toggle
+        case aiChatIPadTogglePromptSubmitted
+        case aiChatIPadToggleURLSubmitted
+        case aiChatOmnibarQuerySubmittedIPadToggleEnabled
+        case aiChatIPadToggleRecentChatSelectedPinned
+        case aiChatIPadToggleRecentChatSelected
+        case aiChatIPadToggleEnabledOnAppOpen
+        case aiChatIPadToggleDisabledOnAppOpen
+        
+        // MARK: AI Chat History Deletion
+        case aiChatHistoryDeleteSuccessful
+        case aiChatHistoryDeleteFailed
+        case aiChatSingleDeleteSuccessful
+        case aiChatSingleDeleteFailed
+
+        // MARK: AI Chat Recent Chats
+        case aiChatRecentChatSelectedPinned
+        case aiChatRecentChatSelected
+
+        // MARK: AI Chat Contextual Mode
+        case aiChatContextualSheetOpened
+        case aiChatContextualSheetDismissed
+        case aiChatContextualExpandButtonTapped
+        case aiChatContextualNewChatButtonTapped
+        case aiChatContextualQuickActionSummarizeSelected
+        case aiChatContextualPageContextPlaceholderShown
+        case aiChatContextualPageContextPlaceholderTapped
+        case aiChatContextualPageContextAutoAttached
+        case aiChatContextualPageContextUpdatedOnNavigation
+        case aiChatContextualPageContextManuallyAttachedNative
+        case aiChatContextualPageContextManuallyAttachedFrontend
+        case aiChatContextualPageContextRemovedNative
+        case aiChatContextualPageContextRemovedFrontend
+        case aiChatContextualPromptSubmittedWithContextNative
+        case aiChatContextualPromptSubmittedWithoutContextNative
+        case aiChatContextualSessionRestored
+        case aiChatContextualFireButtonTapped
+        case aiChatContextualFireButtonConfirmed
+        case aiChatContextualPageContextCollectionEmpty
+        case aiChatContextualPageContextCollectionUnavailable
+        case aiChatContextualQuickActionAskAboutPageSelected
+        case aiChatContextualRecentChatsPopupDisplayed
+        case aiChatContextualRecentChatSelected
+        case aiChatContextualViewAllChatsTapped
+
+        // MARK: Customization
+        case customizationAddressBarStarted
+        case customizationAddressBarSelected
+        case customizationToolbarStarted
+        case customizationToolbarSelected
+
+        // MARK: Lifecycle
+        case appDidTransitionToUnexpectedState
+        case sceneWillConnectToWindowCalledInConnectedState
+
+        // MARK: Tab interaction state debug pixels
+        case tabInteractionStateSourceMissingRootDirectory
+        case tabInteractionStateSourceFailedToWrite
+
+        case tabInteractionStateFailedToRestore
+        case tabInteractionStateRestorationTime(_ time: BucketAggregation)
+
+        // MARK: Malicious Site Protection
+        case maliciousSiteProtection(event: MaliciousSiteProtectionEvent)
+
+        // MARK: - Duck Player Native pixels
+        
+        /// First time Duck Player is opened each day
+        case duckPlayerNativeDailyUniqueView
+        /// Duck Player is opened automatically on YouTube
+        case duckPlayerNativeViewFromYoutubeAutomatic
+        /// Duck Player is opened from the YouTube entry point
+        case duckPlayerNativeViewFromYoutubeEntryPoint
+        /// Duck Player is opened from the YouTube re-entry point
+        case duckPlayerNativeViewFromYoutubeReEntryPoint
+        /// Duck Player is opened from SERP
+        case duckPlayerNativeViewFromSERP
+        /// Watch on YouTube button is tapped from Duck Player UI
+        case duckPlayerNativeWatchOnYoutube
+        /// Duck Player entry point is shown on YouTube video page
+        case duckPlayerNativeEntryPointImpression
+        /// Duck Player entry point is dismissed on YouTube video page
+        case duckPlayerNativeEntryPointDismissed
+        /// Duck Player re-entry point is shown on YouTube video page
+        case duckPlayerNativeReEntryPointImpression
+        /// Duck Player re-entry point is dismissed on YouTube video page
+        case duckPlayerNativeReEntryPointDismissed
+        /// Setting for SERP is changed to off
+        case duckPlayerNativeSettingsSerpOff
+        /// Setting for SERP is changed to on
+        case duckPlayerNativeSettingsSerpOn
+        /// Setting for YouTube is changed to automatic
+        case duckPlayerNativeSettingsYoutubeAutomatic
+        /// Setting for YouTube is changed to let me choose
+        case duckPlayerNativeSettingsYoutubeChoose
+        /// Setting for YouTube is changed to don't show
+        case duckPlayerNativeSettingsYoutubeDontShow
+        /// Priming modal is shown
+        case duckPlayerNativePrimingModalImpression
+        /// Priming modal is dismissed
+        case duckPlayerNativePrimingModalDismissed
+        /// Priming modal CTA is tapped
+        case duckPlayerNativePrimingModalCTA
+        /// Settings gear icon is tapped from Duck Player UI
+        case duckPlayerNativeDuckPlayerSettingsOpened
+
+        // MARK: - System Settings Picture-in-Picture Video Tutorial
+        case systemSettingsPiPTutorialFailedToLoadVideo
+
+        case appDidTerminateWithUnhandledError
+        
+        // MARK: - Push Notifications
+        case inactiveUserProvisionalPushNotificationTapped
+        case userNotificationAuthorizationStatusDaily
+
+        // MARK: - Data Broker Protection Notifications
+        case dbpNotificationOpenedFirstScanComplete
+        case dbpNotificationOpenedFirstFreemiumScanComplete
+        case dbpNotificationOpenedFirstRemoval
+        case dbpNotificationOpenedAllRecordsRemoved
+        case dbpNotificationOpened1WeekCheckIn
+        case dbpNotificationOpenedGoToMarketFirstScan
+
+        // MARK: - App Intent
+        case appIntentPerformed
+
+        case failedToRemoveTmpDir
+        case recreateTmpAttemptFailed(attempt: Int)
+        case recreateTmpSuccessOnRetry(attempt: Int)
+        case recreateTmpWebViewFallbackSucceeded
+        case recreateTmpWebViewFallbackFailed
+        case contentBlockingCompilationFailedMissingTmpDir
+        case tmpDirStillMissingAfterRecreation
+
+        // MARK: - Dax Easter Egg
+        case daxEasterEggLogoDisplayed
+        case daxEasterEggLogoTapped
+        case daxEasterEggLogoSetAsPermanent
+        case daxEasterEggLogoResetToDefault
+
+        // MARK: - Product surface telemetery
+        case productTelemeterySurfaceUsageMenu
+        case productTelemeterySurfaceUsageDAU
+        case productTelemeterySurfaceUsageIPad
+        case productTelemeterySurfaceUsageLandscapeMode
+        case productTelemeterySurfaceUsageKeyboardActive
+        case productTelemeterySurfaceUsageAutocomplete
+        case productTelemeterySurfaceUsageSERP
+        case productTelemeterySurfaceUsageWebsite
+        case productTelemeterySurfaceUsageDuckAI
+        case productTelemeterySurfaceUsageTabManager
+        case productTelemeterySurfaceUsageDataClearing
+        case productTelemeterySurfaceUsageNewTabPage
+        case productTelemeterySurfaceUsageSettings
+        case productTelemeterySurfaceUsageBookmarksPage
+        case productTelemeterySurfaceUsagePasswordsPage
+
+        // MARK: - Web Extensions
+        case webExtensionInstalled
+        case webExtensionInstallError
+        case webExtensionUninstalled
+        case webExtensionUninstallError
+        case webExtensionUninstalledAll
+        case webExtensionUninstallAllError
+        case webExtensionLoaded
+        case webExtensionLoadError
+        case webExtensionEmbeddedInstalled
+        case webExtensionEmbeddedUpgraded
+        case webExtensionEmbeddedInstallError
+
+        case webExtensionDarkReaderInstalled
+        case webExtensionDarkReaderUpgraded
+        case webExtensionDarkReaderInstallError
+        case webExtensionDarkReaderEnabled
+        case webExtensionDarkReaderDisabled
+
+        case webExtensionAdBlockingInstalled
+        case webExtensionAdBlockingUpgraded
+        case webExtensionAdBlockingInstallError
+
+        case webExtensionAdBlockingSettingsOpen
+        case webExtensionAdBlockingEnabled
+        case webExtensionAdBlockingDisabled
+
+        case webExtensionScriptletFetchSuccess
+        case webExtensionScriptletFetchError
+        case webExtensionScriptletValidationError
+        case webExtensionScriptletInstalled
+        case webExtensionScriptletInstallError
+
+        case webExtensionDailyAdBlockingState
+
+        // MARK: - Fire Mode
+        case fireModeNTPPromotionShown
+        case fireModeNTPPromotionDismissed
+        case fireModeNTPPromotionEngaged
+        case fireModeMenuPromotionShown
+        case fireModeMenuPromotionEngaged
+        case browsingModeSwitched
+        case tabSwitcherModeToggled
+        case fireModeBurnExecuted
+        case normalModeBurnExecuted
+        case fireModeDataCleared
+        case normalModeDataCleared
+        case fireModeLastTabClosedBurn
+        case fireModeEmptyStateNewTab
+        case linkLongPressMenuShown
+        case linkLongPressNewTab
+        case linkLongPressBackgroundTab
+        case linkLongPressFireTab
+    }
+
+}
+
+extension Pixel.Event: Equatable {}
+
+extension Pixel.Event {
+    
+    public var name: String {
+        switch self {
+        case .appInstall: return "m_install"
+        case .appLaunch: return "ml"
+        case .appLaunchFromExternalLink: return "m_app-launch_tapped-external-link"
+        case .appLaunchFromShareExtension: return "m_app-launch_shared-link"
+        case .refreshPressed: return "m_r"
+        case .pullToRefresh: return "m_pull-to-reload"
+        case .widgetReport: return "m_widget-report"
+        case .widgetReportFailure: return "m_widget-report-failure"
+
+        case .deviceOrientationLandscape: return "m_device_orientation_landscape"
+
+        case .keyboardGoWhileOnNTP: return "m_keyboard_go_click_ntp"
+        case .keyboardGoWhileOnWebsite: return "m_keyboard_go_click_website"
+        case .keyboardGoWhileOnSERP: return "m_keyboard_go_click_serp"
+        case .keyboardGoWhileOnAIChat: return "m_keyboard_go_click_aichat"
+        
+        case .keyboardSettingsOnNewTabEnabledDaily: return "m_keyboard_settings_on_new_tab_enabled"
+        case .keyboardSettingsOnAppLaunchEnabledDaily: return "m_keyboard_settings_on_app_launch_enabled"
+        case .keyboardOnAppLaunchUsedDaily: return "m_keyboard_on_app_launch_used"
+
+        case .forgetAllPressedBrowsing: return "mf_bp"
+        case .forgetAllPressedTabSwitching: return "mf_tp"
+        case .forgetAllPressedSettings: return "m_forget-all-pressed_settings"
+        case .forgetAllExecuted: return "mf"
+        case .forgetAllDataCleared: return "mf_dc"
+        
+        case .forgetAllPressedBrowsingDaily: return "m_forget-all-pressed_browsing_daily"
+        case .forgetAllPressedTabSwitcherDaily: return "m_forget-all-pressed_tab-switcher_daily"
+        case .forgetAllExecutedDaily: return "m_forget-all-executed_daily"
+
+        // MARK: Single Tab Burn
+        case .singleTabBurnExecuted: return "m_single-tab-burn_executed"
+        case .singleTabDataCleared: return "m_single-tab-data_cleared"
+            
+        case .privacyDashboardOpened: return "mp"
+        case .privacyDashboardFirstTimeOpenedUnique: return "m_privacy_dashboard_first_time_used_unique"
+
+        case .dashboardProtectionAllowlistAdd: return "mp_wla"
+        case .dashboardProtectionAllowlistRemove: return "mp_wlr"
+            
+        case .privacyDashboardReportBrokenSite: return "mp_rb"
+
+        case .keyValueFileStoreSupportDirAccessError: return "m_debug_key_value_file_store_support_dir_access_error"
+        case .keyValueFileStoreInitError: return "m_debug_key_value_file_store_init_error"
+
+        case .tabsStoreSupportDirAccessError: return "m_debug_tabs_store_support_dir_access_error"
+        case .tabsStoreInitError: return "m_debug_tabs_store_init_error"
+        case .tabsStoreSaveError: return "m_debug_tabs_store_save_error"
+        case .tabsStoreReadError: return "m_debug_tabs_store_read_error"
+
+        case .tabSwitcherListEnabled: return "m_ts_l"
+        case .tabSwitcherGridEnabled: return "m_ts_g"
+        case .tabSwitcherNewTab: return "m_tab_manager_new_tab_click"
+        case .tabSwitcherSwitchTabs: return "m_tab_manager_switch_tabs"
+        case .tabSwitcherClickCloseTab: return "m_tab_manager_close_tab_click"
+        case .tabSwitcherSwipeCloseTab: return "m_tab_manager_close_tab_swipe"
+        case .tabSwitchLongPressNewTab: return "m_tab_manager_long_press_new_tab"
+        case .tabLongPressMenuDisplayed: return "m_tab_long_press_menu_displayed"
+        case .tabLongPressMenuNewFireTab: return "m_tab_long_press_menu_new_fire_tab"
+        case .tabLongPressMenuNewNormalTab: return "m_tab_long_press_menu_new_normal_tab"
+        case .tabSwitcherOpenedDaily: return "m_tab_manager_opened_daily"
+        case .tabManagerSwitchToAITab: return "m_tab_manager_switch_to_ai_tab"
+        case .tabManagerSwitchToWebTab: return "m_tab_manager_switch_to_web_tab"
+        case .tabManagerCloseAITab: return "m_tab_manager_close_ai_tab"
+        case .tabManagerCloseWebTab: return "m_tab_manager_close_web_tab"
+
+        case .settingsDoNotSellShown: return "ms_dns"
+        case .settingsDoNotSellOn: return "ms_dns_on"
+        case .settingsDoNotSellOff: return "ms_dns_off"
+            
+        case .settingsAutoconsentShown: return "m_settings_autoconsent_shown"
+        case .settingsAutoconsentOn: return "m_settings_autoconsent_on"
+        case .settingsAutoconsentOff: return "m_settings_autoconsent_off"
+
+        case .settingsPrivateSearchOpen: return "m_settings_private_search_open"
+        case .settingsEmailProtectionOpen: return "m_settings_email_protection_open"
+        case .settingsEmailProtectionEnable: return "m_settings_email_protection_enable"
+        case .settingsGeneralOpen: return "m_settings_general_open"
+        case .settingsSyncOpen: return "m_settings_sync_open"
+        case .settingsAppearanceOpen: return "m_settings_appearance_open"
+        case .settingsThemeSelectorPressed: return "m_settings_theme_selector_pressed"
+        case .settingsAddressBarTopSelected: return "m_settings_address_bar_top_selected"
+        case .settingsAddressBarBottomSelected: return "m_settings_address_bar_bottom_selected"
+        case .settingsShowFullURLOn: return "m_settings_show_full_url_on"
+        case .settingsShowFullURLOff: return "m_settings_show_full_url_off"
+        case .settingsTrackerCountInAddressBarToggled: return "m_appearance_settings_tracker_count_in_address_bar_toggled"
+        case .settingsTrackerCountInTabSwitcherToggled: return "m_appearance_settings_tracker_count_in_tab_switcher_toggled"
+        case .tabSwitcherTrackerCountHidden: return "m_tab_switcher_tracker_count_hidden"
+        case .settingsDataClearingOpen: return "m_settings_data_clearing_open"
+        case .settingsFireButtonSelectorPressed: return "m_settings_fire_button_selector_pressed"
+        case .settingsDataClearingClearDataOpen: return "m_settings_data_clearing_clear_data_open"
+        case .settingsAutomaticallyClearDataOn: return "m_settings_automatically_clear_data_on"
+        case .settingsAutomaticallyClearDataOff: return "m_settings_automatically_clear_data_off"
+        case .settingsAutomaticDataClearingOptionsUpdated: return "m_automatic_data_clearing_options_updated"
+        case .settingsNextStepsAddAppToDock: return "m_settings_next_steps_add_app_to_dock"
+        case .settingsNextStepsAddWidget: return "m_settings_next_steps_add_widget"
+        case .settingsMoreSearchSettings: return "m_settings_more_search_settings"
+        case .settingsOpenAssistSettings: return "m_settings_open_assist_settings"
+        case .settingsRefreshButtonPositionAddressBar: return "m_settings_refresh_button_position_address_bar"
+        case .settingsRefreshButtonPositionMenu: return "m_settings_refresh_button_position_menu"
+        case .settingsWhatsNewOpen: return "m_settings_whats-new_open"
+        case .settingsAutoplayOpen: return "m_settings_autoplay_open"
+        case .settingsAutoplayChanged: return "m_settings_autoplay_changed"
+
+        case .browsingMenuOpened: return "mb"
+        case .browsingMenuOpenedNewTabPage: return "m_nav_menu_ntp"
+        case .browsingMenuOpenedError: return "m_nav_menu_error"
+        case .browsingMenuDismissed: return "m_menu_dismissed"
+        case .browsingMenuNewTab: return "mb_tb"
+        case .browsingMenuAddToBookmarks: return "mb_abk"
+        case .browsingMenuEditBookmark: return "mb_ebk"
+        case .browsingMenuAddToFavorites: return "mb_af"
+        case .browsingMenuRemoveFromFavorites: return "mb_df"
+        case .browsingMenuAddToFavoritesAddFavoriteFlow: return "mb_aff"
+        case .browsingMenuToggleBrowsingMode: return "mb_dm"
+        case .browsingMenuCopy: return "mb_cp"
+        case .browsingMenuPrint: return "mb_pr"
+
+        case .browsingMenuFindInPage: return "mb_fp"
+        case .browsingMenuZoom: return "m_menu_page_zoom_taps"
+        case .browsingMenuDisableProtection: return "mb_wla"
+        case .browsingMenuEnableProtection: return "mb_wlr"
+        case .browsingMenuReportBrokenSite: return "mb_rb"
+        case .browsingMenuFireproof: return "mb_f"
+        case .fireproofingETLDPlus1MigrationStart: return "m_fireproofing_etldplus1_migration_start"
+        case .fireproofingETLDPlus1MigrationSuccess: return "m_fireproofing_etldplus1_migration_success"
+        case .fireproofingETLDPlus1MigrationFailed: return "m_fireproofing_etldplus1_migration_failed"
+        case .browsingMenuAutofill: return "m_nav_autofill_menu_item_pressed"
+        case .browsingMenuRefreshPage: return "m_menu_refresh_page"
+        case .browsingMenuNewDuckAddress: return "m_menu_new_duck_address"
+        case .browsingMenuVPN: return "m_menu_vpn"
+        case .browsingMenuAIChat: return "m_menu_aichat"
+
+        case .browsingMenuShare: return "m_browsingmenu_share"
+        case .browsingMenuListPrint: return "m_browsing_menu_list_print"
+        case .addressBarShare: return "m_addressbar_share"
+        case .addressBarSettings: return "m_addressbar_settings"
+        case .addressBarCancelPressedOnNTP: return "m_addressbar_cancel_ntp"
+        case .addressBarCancelPressedOnWebsite: return "m_addressbar_cancel_website"
+        case .addressBarCancelPressedOnSERP: return "m_addressbar_cancel_serp"
+        case .addressBarCancelPressedOnAIChat: return "m_addressbar_cancel_aichat"
+        case .addressBarClickOnNTP: return "m_addressbar_click_ntp"
+        case .addressBarClickOnWebsite: return "m_addressbar_click_website"
+        case .addressBarClickOnSERP: return "m_addressbar_click_serp"
+        case .addressBarClickOnAIChat: return "m_addressbar_click_aichat"
+        case .addressBarClearPressedOnNTP: return "m_addressbar_focus_clear_entry_ntp"
+        case .addressBarClearPressedOnWebsite: return "m_addressbar_focus_clear_entry_website"
+        case .addressBarClearPressedOnSERP: return "m_addressbar_focus_clear_entry_serp"
+        case .addressBarClearPressedOnAIChat: return "m_addressbar_focus_clear_entry_aichat"
+        case .addressBarGestureDismiss: return "m_addressbar_focus_dismiss_gesture"
+
+        case .shareSheetResultSuccess: return "m_sharesheet_result_success"
+        case .shareSheetResultFail: return "m_sharesheet_result_fail"
+        case .shareSheetActivityCopy: return "m_sharesheet_activity_copy"
+        case .shareSheetActivityAddBookmark: return "m_sharesheet_activity_addbookmark"
+        case .shareSheetActivityAddFavorite: return "m_sharesheet_activity_addfavorite"
+        case .shareSheetActivityFindInPage: return "m_sharesheet_activity_findinpage"
+        case .shareSheetActivityPrint: return "m_sharesheet_activity_print"
+        case .shareSheetActivityAddToReadingList: return "m_sharesheet_activity_addtoreadinglist"
+        case .shareSheetActivityOther: return "m_sharesheet_activity_other"
+            
+        case .tabBarBackPressed: return "mt_bk"
+        case .tabBarForwardPressed: return "mt_fw"
+        case .bookmarksButtonPressed: return "mt_bm"
+        case .tabBarBookmarksLongPressed: return "mt_bl"
+        case .tabBarTabSwitcherOpened: return "m_tab_manager_opened"
+
+        case .bookmarkLaunchList: return "m_bookmark_launch_list"
+        case .bookmarkLaunchScored: return "m_bookmark_launch_scored"
+        case .bookmarkAddFavoriteFromBookmark: return "m_add_favorite_from_bookmark"
+        case .bookmarkRemoveFavoriteFromBookmark: return "m_remove_favorite_from_bookmark"
+        case .bookmarkAddFavoriteBySwipe: return "m_add_favorite_by_swipe"
+        case .bookmarkDeletedFromBookmark: return "m_bookmark_deleted_from_bookmark"
+
+        case .homeScreenShown: return "mh"
+        case .homeScreenEditFavorite: return "mh_ef"
+        case .homeScreenDeleteFavorite: return "mh_df"
+
+        case .favoriteLaunchedNTP: return "m_favorite_launched_ntp"
+        case .favoriteLaunchedWebsite: return "m_favorite_launched_website"
+        case .favoriteLaunchedWidget: return "m_favorite_launched_widget"
+
+        case .autocompleteClickPhrase: return "m_autocomplete_click_phrase"
+        case .autocompleteClickWebsite: return "m_autocomplete_click_website"
+        case .autocompleteClickBookmark: return "m_autocomplete_click_bookmark"
+        case .autocompleteClickFavorite: return "m_autocomplete_click_favorite"
+        case .autocompleteClickSearchHistory: return "m_autocomplete_click_history_search"
+        case .autocompleteClickSiteHistory: return "m_autocomplete_click_history_site"
+        case .autocompleteClickOpenTab: return "m_autocomplete_click_switch_to_tab"
+
+        case .autocompleteAskAIChatLegacyExperience: return "m_autocomplete_click_askaichat_legacy"
+        case .autocompleteAskAIChatExperimentalExperience: return "m_autocomplete_click_askaichat_experimental"
+
+        case .autocompleteDisplayedLocalBookmark: return "m_autocomplete_display_local_bookmark"
+        case .autocompleteDisplayedLocalFavorite: return "m_autocomplete_display_local_favorite"
+        case .autocompleteDisplayedLocalHistory: return "m_autocomplete_display_local_history"
+        case .autocompleteDisplayedOpenedTab: return "m_autocomplete_display_switch_to_tab"
+        case .autocompleteDeleteHistoryEntry: return "m_autocomplete_result_deleted"
+        case .autocompleteDeleteHistoryEntryDaily: return "m_autocomplete_result_deleted_daily"
+
+        case .feedbackPositive: return "mfbs_positive_submit"
+        case .feedbackNegativePrefix(category: let category): return "mfbs_negative_\(category)"
+            
+        case .brokenSiteReport: return "epbf"
+            
+        case .onboardingIntroShownUnique: return "m_preonboarding_intro_shown_unique"
+        case .onboardingIntroSkipOnboardingCTAPressed: return "m_preonboarding_skip-onboarding-pressed"
+        case .onboardingIntroConfirmSkipOnboardingCTAPressed: return "m_preonboarding_confirm-skip-onboarding-pressed"
+        case .onboardingIntroResumeOnboardingCTAPressed: return "m_preonboarding_resume-onboarding-pressed"
+        case .onboardingIntroComparisonChartShownUnique: return "m_preonboarding_comparison_chart_shown_unique"
+        case .onboardingIntroChooseBrowserCTAPressed: return "m_preonboarding_choose_browser_pressed"
+        case .onboardingIntroChooseAppIconImpressionUnique: return "m_preonboarding_choose_icon_impressions_unique"
+        case .onboardingIntroChooseCustomAppIconColorCTAPressed: return "m_preonboarding_icon_color_chosen"
+        case .onboardingIntroChooseAddressBarImpressionUnique: return "m_preonboarding_choose_address_bar_impressions_unique"
+        case .onboardingIntroBottomAddressBarSelected: return "m_preonboarding_bottom_address_bar_selected"
+        case .onboardingIntroChooseSearchExperienceImpressionUnique: return "m_preonboarding_choose_search_experience_impressions_unique"
+        case .onboardingIntroAIChatSelected: return "m_preonboarding_aichat_selected"
+        case .onboardingIntroSearchOnlySelected: return "m_preonboarding_search_only_selected"
+        case .onboardingIntroDuckAIExperimentToggleImpressionUnique: return "m_preonboarding_duckai_toggle-screen-impression_unique"
+        case .onboardingIntroDuckAIExperimentToggleContinuePressedSearch: return "m_preonboarding_duckai_toggle-continue-pressed_search"
+        case .onboardingIntroDuckAIExperimentToggleContinuePressedAI: return "m_preonboarding_duckai_toggle-continue-pressed_ai"
+        case .onboardingDuckAIExperimentFireDialogShownUnique: return "m_preonboarding_duckai_fire-dialog-impression_unique"
+        case .onboardingDuckAIExperimentFireButtonCTAPressed: return "m_preonboarding_duckai_fire-button-pressed"
+        case .onboardingDuckAIExperimentFinalDialogShownUnique: return "m_preonboarding_duckai_final-dialog-impression_unique"
+
+        case .onboardingContextualSearchOptionTappedUnique: return "m_onboarding_search_option_tapped_unique"
+        case .onboardingContextualSiteOptionTappedUnique: return "m_onboarding_visit_site_option_tapped_unique"
+        case .onboardingContextualSecondSiteVisitUnique: return "m_second_sitevisit_unique"
+        case .onboardingContextualSearchCustomUnique: return "m_onboarding_search_custom_unique"
+        case .onboardingContextualSiteCustomUnique: return "m_onboarding_visit_site_custom_unique"
+        case .onboardingContextualTrySearchUnique: return "m_dx_try_a_search_unique"
+        case .onboardingContextualTryVisitSiteUnique: return "m_dx_try_visit_site_unique"
+        
+        case .daxDialogsSerpUnique: return "m_dx_s_unique"
+        case .daxDialogsWithoutTrackersUnique: return "m_dx_wo_unique"
+        case .daxDialogsWithoutTrackersFollowUp: return "m_dx_wof"
+        case .daxDialogsWithTrackersUnique: return "m_dx_wt_unique"
+        case .daxDialogsSiteIsMajorUnique: return "m_dx_sm_unique"
+        case .daxDialogsSiteOwnedByMajorUnique: return "m_dx_so_unique"
+        case .daxDialogsFireEducationShownUnique: return "m_dx_fe_s_unique"
+        case .daxDialogsFireEducationConfirmedUnique: return "m_dx_fe_co_unique"
+        case .daxDialogsFireEducationCancelledUnique: return "m_dx_fe_ca_unique"
+        case .daxDialogsEndOfJourneyTabUnique: return "m_dx_end_tab_unique"
+        case .daxDialogsEndOfJourneyNewTabUnique: return "m_dx_end_new_tab_unique"
+        case .daxDialogsEndOfJourneyDismissed: return "m_dx_end_dialog_dismissed"
+
+        case .onboardingTrySearchDialogNewTabDismissButtonTapped: return "m_onboarding_try-search-dialog-new-tab_dismiss-button-tapped"
+        case .onboardingSearchResultDialogDismissButtonTapped: return "m_onboarding_search-result-dialog_dismiss-button-tapped"
+        case .onboardingTryVisitSiteDialogNewTabDismissButtonTapped: return "m_onboarding_try-visit-site-dialog-new-tab_dismiss-button-tapped"
+        case .onboardingTryVisitSiteDialogDismissButtonTapped: return "m_onboarding_try-visit-site-dialog_dismiss-button-tapped"
+        case .onboardingTrackersDialogDismissButtonTapped: return "m_onboarding_trackers-dialog_dismiss-button-tapped"
+        case .onboardingFireDialogDismissButtonTapped: return "m_onboarding_fire-dialog_dismiss-button-tapped"
+        case .onboardingEndOfJourneyDialogNewTabDismissButtonTapped: return "m_onboarding_end-dialog-new-tab_dismiss-button-tapped"
+        case .onboardingEndOfJourneyDialogDismissButtonTapped: return "m_onboarding_end-dialog_dismiss-button-tapped"
+        case .onboardingSubscriptionDialogDismissButtonTapped: return "m_onboarding_privacy-promo-dialog_dismiss-button-tapped"
+
+        case .onboardingAddToDockPromoImpressionsUnique: return "m_onboarding_add_to_dock_promo_impressions_unique"
+        case .onboardingAddToDockPromoShowTutorialCTATapped: return "m_onboarding_add_to_dock_promo_show_tutorial_button_tapped"
+        case .onboardingAddToDockPromoDismissCTATapped: return "m_onboarding_add_to_dock_promo_dismiss_button_tapped"
+        case .onboardingAddToDockTutorialDismissCTATapped: return "m_onboarding_add_to_dock_tutorial_dismiss_button_tapped"
+
+        case .widgetsOnboardingCTAPressed: return "m_o_w_a"
+        case .widgetsOnboardingDeclineOptionPressed: return "m_o_w_d"
+        case .widgetsOnboardingMovedToBackground: return "m_o_w_b"
+            
+        case .emailEnabled: return "email_enabled"
+        case .emailDisabled: return "email_disabled"
+        case .emailUserPressedUseAddress: return "email_filled_main"
+        case .emailUserPressedUseAlias: return "email_filled_random"
+        case .emailUserCreatedAlias: return "email_generated_button"
+        case .emailTooltipDismissed: return "email_tooltip_dismissed"
+            
+        case .voiceSearchSERPDone: return "m_voice_search_serp_done"
+        case .voiceSearchAIChatDone: return "m_voice_search_aichat_done"
+        case .openVoiceSearch: return "m_open_voice_search"
+        case .voiceSearchCancelled: return "m_voice_search_cancelled"
+            
+        case .bookmarkImportSuccess: return "m_bi_s"
+        case .bookmarkImportFailure: return "m_bi_e"
+        case .bookmarkImportFailureParsingDL: return "m_bi_e_parsing_dl"
+        case .bookmarkImportFailureParsingBody: return "m_bi_e_parsing_body"
+        case .bookmarkImportFailureTransformingSafari: return "m_bi_e_transforming_safari"
+        case .bookmarkImportFailureSaving: return "m_bi_e_saving"
+        case .bookmarkImportFailureUnknown: return "m_bi_e_unknown"
+        case .bookmarkExportSuccess: return "m_be_a"
+        case .bookmarkExportFailure: return "m_be_e"
+
+        // Text size is the legacy name
+        case .textZoomSettingsChanged: return "m_text_size_settings_changed"
+        case .textZoomChangedOnPageDaily: return "m_menu_page_zoom_changed_daily"
+        case .textZoomChangedOnPage: return "m_menu_page_zoom_changed"
+
+        case .downloadStarted: return "m_download_started"
+        case .downloadStartedDueToUnhandledMIMEType: return "m_download_started_due_to_unhandled_mime_type"
+        case .downloadTriedToPresentPreviewWithoutTab: return "m_download_tried_to_present_preview_without_tab"
+        case .downloadsListOpened: return "m_downloads_list_opened"
+            
+        case .downloadsListOngoingDownloadCancelled: return "m_downloads_list_ongoing_download_cancelled"
+        case .downloadsListCompleteDownloadDeleted: return "m_downloads_list_complete_download_deleted"
+        case .downloadsListAllCompleteDownloadsDeleted: return "m_downloads_list_all_complete_downloads_deleted"
+        case .downloadsListDeleteUndo: return "m_downloads_list_delete_undo"
+        case .downloadsListSharePressed: return "m_downloads_list_share_pressed"
+            
+        case .downloadsSharingPredownloadedLocalFile: return "m_downloads_sharing_predownloaded_local_file"
+            
+        case .jsAlertShown: return "m_js_alert_shown"
+            
+        case .featureFlaggingInternalUserAuthenticated: return "m_internal-user_authenticated"
+
+            // MARK: Autofill pixels
+
+        case .autofillLoginsSaveLoginModalDisplayed: return "m_autofill_logins_save_login_inline_displayed"
+        case .autofillLoginsSaveLoginModalConfirmed: return "m_autofill_logins_save_login_inline_confirmed"
+        case .autofillLoginsSaveLoginModalDismissed: return "m_autofill_logins_save_login_inline_dismissed"
+        case .autofillLoginsSaveLoginModalExcludeSiteConfirmed: return "m_autofill_logins_save_login_exclude_site_confirmed"
+
+        case .autofillLoginsSaveLoginOnboardingModalDisplayed: return "autofill_logins_save_login_inline_onboarding_displayed"
+        case .autofillLoginsSaveLoginOnboardingModalConfirmed: return "autofill_logins_save_login_inline_onboarding_confirmed"
+        case .autofillLoginsSaveLoginOnboardingModalDismissed: return "autofill_logins_save_login_inline_onboarding_dismissed"
+        case .autofillLoginsSaveLoginOnboardingModalExcludeSiteConfirmed: return "autofill_logins_save_login_onboarding_exclude_site_confirmed"
+
+        case .autofillLoginsSavePasswordModalDisplayed: return "m_autofill_logins_save_password_inline_displayed"
+        case .autofillLoginsSavePasswordModalConfirmed: return "m_autofill_logins_save_password_inline_confirmed"
+        case .autofillLoginsSavePasswordModalDismissed: return "m_autofill_logins_save_password_inline_dismissed"
+            
+        case .autofillLoginsUpdatePasswordModalDisplayed: return "m_autofill_logins_update_password_inline_displayed"
+        case .autofillLoginsUpdatePasswordModalConfirmed: return "m_autofill_logins_update_password_inline_confirmed"
+        case .autofillLoginsUpdatePasswordModalDismissed: return "m_autofill_logins_update_password_inline_dismissed"
+            
+        case .autofillLoginsUpdateUsernameModalDisplayed: return "m_autofill_logins_update_username_inline_displayed"
+        case .autofillLoginsUpdateUsernameModalConfirmed: return "m_autofill_logins_update_username_inline_confirmed"
+        case .autofillLoginsUpdateUsernameModalDismissed: return "m_autofill_logins_update_username_inline_dismissed"
+            
+        case .autofillLoginsFillLoginInlineManualDisplayed: return "m_autofill_logins_fill_login_inline_manual_displayed"
+        case .autofillLoginsFillLoginInlineManualConfirmed: return "m_autofill_logins_fill_login_inline_manual_confirmed"
+        case .autofillLoginsFillLoginInlineManualDismissed: return "m_autofill_logins_fill_login_inline_manual_dismissed"
+            
+        case .autofillLoginsFillLoginInlineAutopromptDisplayed: return "m_autofill_logins_fill_login_inline_autoprompt_displayed"
+        case .autofillLoginsFillLoginInlineAutopromptConfirmed: return "m_autofill_logins_fill_login_inline_autoprompt_confirmed"
+            
+        case .autofillLoginsFillLoginInlineAuthenticationDeviceDisplayed:
+            return "m_autofill_logins_fill_login_inline_authentication_device-displayed"
+        case .autofillLoginsFillLoginInlineAuthenticationDeviceAuthAuthenticated:
+            return "m_autofill_logins_fill_login_inline_authentication_device-auth_authenticated"
+        case .autofillLoginsFillLoginInlineAuthenticationDeviceAuthFailed:
+            return "m_autofill_logins_fill_login_inline_authentication_device-auth_failed"
+        case .autofillLoginsFillLoginInlineAuthenticationDeviceAuthUnavailable:
+            return "m_autofill_logins_fill_login_inline_authentication_device-auth_unavailable"
+        case .autofillLoginsFillLoginInlineAuthenticationDeviceAuthCancelled:
+            return "m_autofill_logins_fill_login_inline_authentication_device-auth_cancelled"
+        case .autofillLoginsAutopromptDismissed:
+            return "m_autofill_logins_autoprompt_dismissed"
+            
+        case .autofillLoginsFillLoginInlineDisableSnackbarShown: return "autofill_logins_save_disable_snackbar_shown"
+        case .autofillLoginsFillLoginInlineDisableSnackbarOpenSettings: return "autofill_logins_save_disable_snackbar_open_settings"
+            
+        case .autofillLoginsSettingsEnabled: return "m_autofill_logins_settings_enabled"
+        case .autofillLoginsSettingsDisabled: return "m_autofill_logins_settings_disabled"
+        case .autofillLoginsSettingsResetExcludedDisplayed: return "m_autofill_settings_reset_excluded_displayed"
+        case .autofillLoginsSettingsResetExcludedConfirmed: return "m_autofill_settings_reset_excluded_confirmed"
+        case .autofillLoginsSettingsResetExcludedDismissed: return "m_autofill_settings_reset_excluded_dismissed"
+            
+        case .autofillLoginsPasswordGenerationPromptDisplayed: return "m_autofill_logins_password_generation_prompt_displayed"
+        case .autofillLoginsPasswordGenerationPromptConfirmed: return "m_autofill_logins_password_generation_prompt_confirmed"
+        case .autofillLoginsPasswordGenerationPromptDismissed: return "m_autofill_logins_password_generation_prompt_dismissed"
+
+        case .autofillLoginsLaunchWidgetHome: return "m_autofill_logins_launch_widget_home"
+        case .autofillLoginsLaunchWidgetLock: return "m_autofill_logins_launch_widget_lock"
+        case .autofillLoginsLaunchAppShortcut: return "m_autofill_logins_launch_app_shortcut"
+
+        case .autofillLoginsImport: return "m_autofill_logins_import"
+        case .autofillLoginsImportNoPasswords: return "m_autofill_logins_import_no_passwords"
+        case .autofillLoginsImportGetDesktop: return "m_autofill_logins_import_get_desktop"
+        case .autofillLoginsImportSync: return "m_autofill_logins_import_sync"
+        case .autofillLoginsImportNoAction: return "m_autofill_logins_import_no-action"
+        case .autofillLoginsImportSuccess: return "m_autofill_logins_import_success"
+        case .autofillLoginsImportFailure: return "m_autofill_logins_import_failure"
+
+        case .autofillActiveUser: return "m_autofill_activeuser"
+        case .autofillEnabledUser: return "m_autofill_enableduser"
+        case .autofillOnboardedUser: return "m_autofill_onboardeduser"
+        case .autofillToggledOn: return "m_autofill_toggled_on"
+        case .autofillToggledOff: return "m_autofill_toggled_off"
+        case .autofillExtensionToggledOn: return "m_autofill_extension_toggled_on"
+        case .autofillExtensionToggledOff: return "m_autofill_extension_toggled_off"
+
+        case .autofillLoginsStacked: return "m_autofill_logins_stacked"
+        case .autofillCreditCardsStacked: return "m_autofill_creditcards_stacked"
+            
+        case .autofillDeviceCapabilityDeviceAuthDisabled: return "m_autofill_device_capability_device_auth_disabled"
+
+        case .autofillSettingsOpened: return "autofill_settings_opened"
+            
+        case .autofillManagementOpened:
+            return "m_autofill_management_opened"
+        case .autofillManagementCopyUsername:
+            return "m_autofill_management_copy_username"
+        case .autofillManagementCopyPassword:
+            return "m_autofill_management_copy_password"
+        case .autofillManagementDeleteLogin:
+            return "m_autofill_management_delete_login"
+        case .autofillManagementDeleteAllLogins:
+            return "m_autofill_management_delete_all_logins"
+        case .autofillManagementSaveLogin:
+            return "m_autofill_management_save_login"
+        case .autofillManagementUpdateLogin:
+            return "m_autofill_management_update_login"
+
+        case .autofillLoginsReportFailure: return "autofill_logins_report_failure"
+        case .autofillLoginsReportAvailable: return "autofill_logins_report_available"
+        case .autofillLoginsReportConfirmationPromptDisplayed: return "autofill_logins_report_confirmation_displayed"
+        case .autofillLoginsReportConfirmationPromptConfirmed: return "autofill_logins_report_confirmation_confirmed"
+        case .autofillLoginsReportConfirmationPromptDismissed: return "autofill_logins_report_confirmation_dismissed"
+
+        case .autofillCardsSaveCardInlineDisplayed: return "autofill_cards_save_card_inline_displayed"
+        case .autofillCardsSaveCardInlineConfirmed: return "autofill_cards_save_card_inline_confirmed"
+        case .autofillCardsSaveCardInlineDismissed: return "autofill_cards_save_card_inline_dismissed"
+        case .autofillCardsFillCardManualInlineDisplayed: return "autofill_cards_fill_card_inline_manual_displayed"
+        case .autofillCardsFillCardManualInlineConfirmed: return "autofill_cards_fill_card_inline_manual_confirmed"
+        case .autofillCardsFillCardManualInlineDismissed: return "autofill_cards_fill_card_inline_manual_dismissed"
+        case .autofillCardsKeyboardFill: return "autofill_cards_keyboard_fill_confirmed"
+        case .autofillCardsKeyboardOpenSettings: return "autofill_cards_keyboard_open_settings"
+        case .autofillCardsSaveDisableSnackbarShown: return "autofill_cards_save_disable_snackbar_shown"
+        case .autofillCardsSaveDisableSnackbarOpenSettings: return "autofill_cards_save_disable_snackbar_open_settings"
+        case .autofillCardsSettingsEnabled: return "autofill_cards_settings_enabled"
+        case .autofillCardsSettingsDisabled: return "autofill_cards_settings_disabled"
+        case .autofillCardsManagementOpened: return "autofill_cards_management_opened"
+        case .autofillCardsManagementCopyCardNumber: return "autofill_cards_management_copy_card_number"
+        case .autofillCardsManagementDeleteCard: return "autofill_cards_management_delete_card"
+        case .autofillCardsManagementSaveCard: return "autofill_cards_management_save_card"
+        case .autofillCardsManagementUpdateCard: return "autofill_cards_management_update_card"
+
+        case .autofillManagementScreenVisitSurveyAvailable: return "m_autofill_management_screen_visit_survey_available"
+
+        case .getDesktopCopy: return "m_get_desktop_copy"
+        case .getDesktopShare: return "m_get_desktop_share"
+
+        // Autofill Credential Provider Extension
+        case .autofillExtensionEnabled: return "autofill_extension_enabled"
+        case .autofillExtensionDisabled: return "autofill_extension_disabled"
+        case .autofillExtensionWelcomeDismiss: return "autofill_extension_welcome_dismiss"
+        case .autofillExtensionWelcomeLaunchApp: return "autofill_extension_welcome_launch_app"
+        case .autofillExtensionQuickTypeConfirmed: return "autofill_extension_quicktype_confirmed"
+        case .autofillExtensionQuickTypeCancelled: return "autofill_extension_quicktype_cancelled"
+        case .autofillExtensionPasswordsOpened: return "autofill_extension_passwords_opened"
+        case .autofillExtensionPasswordsDismissed: return "autofill_extension_passwords_dismissed"
+        case .autofillExtensionPasswordSelected: return "autofill_extension_password_selected"
+        case .autofillExtensionPasswordsSearch: return "autofill_extension_passwords_search"
+
+        case .autofillExtensionPasswordsPromoDisplayed: return "autofill_extension_passwords_promo_displayed"
+        case .autofillExtensionPasswordsPromoConfirmed: return "autofill_extension_passwords_promo_confirmed"
+        case .autofillExtensionPasswordsPromoDismissed: return "autofill_extension_passwords_promo_dismissed"
+        case .autofillExtensionInlinePromoDisplayed: return "autofill_extension_inline_promo_displayed"
+        case .autofillExtensionInlinePromoConfirmed: return "autofill_extension_inline_promo_confirmed"
+        case .autofillExtensionInlinePromoDismissed: return "autofill_extension_inline_promo_dismissed"
+        case .autofillExtensionInlinePromoDismissedPermanently: return "autofill_extension_inline_promo_dismissed_permanently"
+
+        case .autofillExtensionSettingsTurnOnTapped: return "autofill_extension_settings_turn_on_tapped"
+        case .autofillExtensionSettingsTurnOffTapped: return "autofill_extension_settings_turn_off_tapped"
+        case .autofillExtensionSettingsTurnOnSuccess: return "autofill_extension_settings_turn_on_success"
+        case .autofillExtensionSettingsTurnOnThrottled: return "autofill_extension_settings_turn_on_throttled"
+        case .autofillExtensionSettingsTurnOnCancelled: return "autofill_extension_settings_turn_on_cancelled"
+        case .autofillExtensionSettingsTurnOnFailed: return "autofill_extension_settings_turn_on_failed"
+
+        case .autofillJSPixelFired(let pixel):
+            return "m_ios_\(pixel.pixelName)"
+
+        case .secureVaultError: return "m_secure_vault_error"
+
+        case .secureVaultInitFailedError: return "m_secure-vault_error_init-failed"
+        case .secureVaultFailedToOpenDatabaseError: return "m_secure-vault_error_failed-to-open-database"
+        case .sharedSecureVaultInitFailed: return "m_debug_shared_secure_vault_init_failed"
+
+        case .secureVaultIsEnabledCheckedWhenEnabledAndDataProtected: return "m_secure-vault_is-enabled-checked_when-enabled-and-data-protected"
+
+        case .secureVaultV4Migration: return "m_secure-vault_v4-migration"
+        case .secureVaultV4MigrationSkipped: return "m_secure-vault_v4-migration-skipped"
+
+        case .importCredentialsFlowStarted: return "autofill_import_credentials_flow_started"
+        case .importCredentialsFlowCancelled: return "autofill_import_credentials_flow_cancelled"
+        case .importCredentialsFlowHadCredentials: return "autofill_import_credentials_flow_had_credentials"
+        case .importCredentialsFlowEnded: return "autofill_import_credentials_flow_ended"
+        case .importCredentialsPromptNeverAgainClicked: return "autofill_import_credentials_prompt_never_again_clicked"
+
+        // MARK: Data Import pixels
+
+        case .autofillImportPasswordsImportButtonTapped: return "autofill_import_passwords_import_button_tapped"
+        case .autofillImportPasswordsImportButtonShown: return "autofill_import_passwords_import_button_shown"
+        case .autofillImportPasswordsOverflowMenuTapped: return "autofill_import_passwords_overflow_menu_tapped"
+        case .bookmarksImportButtonTapped: return "bookmarks_import_button_tapped"
+        case .bookmarksImportButtonShown: return "bookmarks_import_button_shown"
+        case .bookmarksImportOverflowMenuTapped: return "bookmarks_import_overflow_menu_tapped"
+        case .importInstructionsDisplayed: return "import_instructions_displayed"
+        case .importInstructionsFileButtonTapped: return "import_instructions_file_button_tapped"
+        case .importInstructionsToggled: return "import_instructions_toggled"
+        case .importInstructionsFileSelectedZip: return "import_instructions_file_selected-zip"
+        case .importInstructionsFileSelectedHtml: return "import_instructions_file_selected-html"
+        case .importInstructionsFileSelectedCsv: return "import_instructions_file_selected-csv"
+        case .importInstructionsCancelled: return "import_instructions_cancelled"
+        case .importPreviewPromptDisplayed: return "import_preview_prompt_displayed"
+        case .importPreviewPromptConfirmed: return "import_preview_prompt_confirmed"
+        case .importPreviewPromptDismissed: return "import_preview_prompt_dismissed"
+        case .importResultDisplayed: return "import_result_displayed"
+        case .importResultPasswordsSuccess: return "import_result_passwords_success"
+        case .importResultBookmarksSuccess: return "import_result_bookmarks_success"
+        case .importResultCreditCardsSuccess: return "import_result_creditcards_success"
+        case .importResultSyncButtonShown: return "import_result_sync_button_shown"
+        case .importResultSyncButtonTapped: return "import_result_sync_button_tapped"
+        case .importResultPasswordsParsing: return "import_result_passwords_parsing"
+        case .importResultBookmarksParsing: return "import_result_bookmarks_parsing"
+        case .importResultUnzipping: return "import_result_unzipping"
+
+        // MARK: Data Import Hub pixels
+
+        case .importHubEntryShown: return "import_hub_entry_shown"
+        case .importHubEntryTapped: return "import_hub_entry_tapped"
+        case .importHubDisplayed: return "import_hub_displayed"
+        case .importHubSourceSelected: return "import_hub_source_selected"
+        case .importHubCancelled: return "import_hub_cancelled"
+        case .importHubSourceInstructionsDisplayed: return "import_hub_source_instructions_displayed"
+        case .importHubSourceInstructionsCancelled: return "import_hub_source_instructions_cancelled"
+        case .importHubSourcePrimaryTapped: return "import_hub_source_primary_tapped"
+        case .importHubSourceUploadFileTapped: return "import_hub_source_upload_file_tapped"
+        case .importHubSafariFileSimulatedCompletion: return "import_hub_safari_file_simulated_completion"
+        case .importHubSafariFileSimulatedFailure: return "import_hub_safari_file_simulated_failure"
+        case .importHubSafariInterstitialDisplayed: return "import_hub_safari_interstitial_displayed"
+        case .importHubSafariInterstitialExportTapped: return "import_hub_safari_interstitial_export_tapped"
+        case .importHubSafariInterstitialCancelled: return "import_hub_safari_interstitial_cancelled"
+        case .importHubBrowserkitRequested: return "import_hub_browserkit_requested"
+        case .importHubBrowserkitReturnedSuccess: return "import_hub_browserkit_returned_success"
+        case .importHubBrowserkitReturnedCancelled: return "import_hub_browserkit_returned_cancelled"
+        case .importHubBrowserkitReturnedFailure: return "import_hub_browserkit_returned_failure"
+        case .importHubFilePickerDisplayed: return "import_hub_file_picker_displayed"
+        case .importHubFilePickedZip: return "import_hub_file_picked_zip"
+        case .importHubFilePickedCsv: return "import_hub_file_picked_csv"
+        case .importHubFilePickedHtml: return "import_hub_file_picked_html"
+        case .importHubFilePickerCancelled: return "import_hub_file_picker_cancelled"
+        case .importHubFilePickerUnsupported: return "import_hub_file_picker_unsupported"
+        case .importHubFileErrorDisplayed: return "import_hub_file_error_displayed"
+        case .importHubResultDisplayed: return "import_hub_result_displayed"
+        case .importHubResultPasswordsSuccess: return "import_hub_result_passwords_success"
+        case .importHubResultBookmarksSuccess: return "import_hub_result_bookmarks_success"
+        case .importHubResultCreditCardsSuccess: return "import_hub_result_creditcards_success"
+        case .importHubResultPasswordsParsing: return "import_hub_result_passwords_parsing"
+        case .importHubResultBookmarksParsing: return "import_hub_result_bookmarks_parsing"
+        case .importHubResultUnzipping: return "import_hub_result_unzipping"
+        case .importHubResultSyncPromoShown: return "import_hub_result_sync_promo_shown"
+        case .importHubResultSyncPromoTapped: return "import_hub_result_sync_promo_tapped"
+        case .importHubResultSyncPromoDismissed: return "import_hub_result_sync_promo_dismissed"
+        case .importHubResultContinueToSafariPasswordsShown: return "import_hub_result_continue_to_safari_passwords_shown"
+        case .importHubResultContinueToSafariPasswordsTapped: return "import_hub_result_continue_to_safari_passwords_tapped"
+        case .importHubResultContinueToSafariPasswordsDismissed: return "import_hub_result_continue_to_safari_passwords_dismissed"
+        case .importHubResultContinueToSafariBookmarksShown: return "import_hub_result_continue_to_safari_bookmarks_shown"
+        case .importHubResultContinueToSafariBookmarksTapped: return "import_hub_result_continue_to_safari_bookmarks_tapped"
+        case .importHubResultContinueToSafariBookmarksDismissed: return "import_hub_result_continue_to_safari_bookmarks_dismissed"
+        case .importHubResultDoneTapped: return "import_hub_result_done_tapped"
+        case .importHubSyncOpenSettingsTapped: return "import_hub_sync_open_settings_tapped"
+        case .importHubCredentialExchangeActivityReceived: return "import_hub_credential_exchange_activity_received"
+        case .importHubCredentialExchangeTokenMissing: return "import_hub_credential_exchange_token_missing"
+        case .importHubCredentialExchangeSuccess: return "import_hub_credential_exchange_success"
+        case .importHubCredentialExchangeFailure: return "import_hub_credential_exchange_failure"
+        case .importHubCredentialExchangeSimulatedCompletion: return "import_hub_credential_exchange_simulated_completion"
+        case .importHubCredentialExchangeSimulatedFailure: return "import_hub_credential_exchange_simulated_failure"
+
+            // MARK: Ad Click Attribution pixels
+            
+        case .adClickAttributionDetected: return "m_ad_click_detected"
+        case .adClickAttributionActive: return "m_ad_click_active"
+        case .adClickAttributionPageLoads: return "m_pageloads_with_ad_attribution"
+            
+            // MARK: SERP pixels
+            
+        case .serpRequerySame: return "rq_0"
+        case .serpRequeryNew: return "rq_1"
+            
+            // MARK: Network Protection pixels
+            
+        case .networkProtectionActiveUser: return "m_netp_daily_active_d"
+        case .networkProtectionNewUser: return "m_netp_daily_active_u"
+        case .networkProtectionControllerStartAttempt: return "m_netp_controller_start_attempt"
+        case .networkProtectionControllerStartSuccess: return "m_netp_controller_start_success"
+        case .networkProtectionControllerStartFailure: return "m_netp_controller_start_failure"
+        case .networkProtectionTunnelStartAttempt: return "m_netp_tunnel_start_attempt"
+        case .networkProtectionTunnelStartAttemptOnDemandWithoutAccessToken: return "m_netp_tunnel_start_attempt_on_demand_without_access_token"
+        case .networkProtectionTunnelStartSuccess: return "m_netp_tunnel_start_success"
+        case .networkProtectionTunnelStartFailure: return "m_netp_tunnel_start_failure"
+        case .networkProtectionConnectionFailureLoopDetected: return "m_netp_connection_failure_loop_detected"
+        case .networkProtectionTunnelStopAttempt: return "m_netp_tunnel_stop_attempt"
+        case .networkProtectionTunnelStopSuccess: return "m_netp_tunnel_stop_success"
+        case .networkProtectionTunnelStopFailure: return "m_netp_tunnel_stop_failure"
+        case .networkProtectionTunnelUpdateAttempt: return "m_netp_tunnel_update_attempt"
+        case .networkProtectionTunnelUpdateSuccess: return "m_netp_tunnel_update_success"
+        case .networkProtectionTunnelUpdateFailure: return "m_netp_tunnel_update_failure"
+        case .networkProtectionTunnelWakeFailure: return "m_netp_tunnel_wake_failure"
+        case .networkProtectionEnableAttemptConnecting: return "m_netp_ev_enable_attempt"
+        case .networkProtectionEnableAttemptSuccess: return "m_netp_ev_enable_attempt_success"
+        case .networkProtectionEnableAttemptFailure: return "m_netp_ev_enable_attempt_failure"
+        case .networkProtectionConnectionTesterFailureDetected: return "m_netp_connection_tester_failure"
+        case .networkProtectionConnectionTesterFailureRecovered: return "m_netp_connection_tester_failure_recovered"
+        case .networkProtectionConnectionTesterExtendedFailureDetected: return "m_netp_connection_tester_extended_failure"
+        case .networkProtectionConnectionTesterExtendedFailureRecovered: return "m_netp_connection_tester_extended_failure_recovered"
+        case .networkProtectionTunnelFailureDetected: return "m_netp_ev_tunnel_failure"
+        case .networkProtectionTunnelFailureRecovered: return "m_netp_ev_tunnel_failure_recovered"
+        case .networkProtectionLatency(let quality): return "m_netp_ev_\(quality)_latency"
+        case .networkProtectionLatencyError: return "m_netp_ev_latency_error_d"
+        case .networkProtectionRekeyAttempt: return "m_netp_rekey_attempt"
+        case .networkProtectionRekeyCompleted: return "m_netp_rekey_completed"
+        case .networkProtectionRekeyFailure: return "m_netp_rekey_failure"
+        case .networkProtectionEnabledOnSearch: return "m_netp_ev_enabled_on_search"
+        case .networkProtectionTunnelConfigurationNoServerRegistrationInfo: return "m_netp_tunnel_config_error_no_server_registration_info"
+        case .networkProtectionTunnelConfigurationCouldNotSelectClosestServer: return "m_netp_tunnel_config_error_could_not_select_closest_server"
+        case .networkProtectionTunnelConfigurationCouldNotGetPeerPublicKey: return "m_netp_tunnel_config_error_could_not_get_peer_public_key"
+        case .networkProtectionTunnelConfigurationCouldNotGetPeerHostName: return "m_netp_tunnel_config_error_could_not_get_peer_host_name"
+        case .networkProtectionTunnelConfigurationCouldNotGetInterfaceAddressRange:
+            return "m_netp_tunnel_config_error_could_not_get_interface_address_range"
+        case .networkProtectionClientFailedToFetchServerList: return "m_netp_backend_api_error_failed_to_fetch_server_list"
+        case .networkProtectionClientFailedToParseServerListResponse: return "m_netp_backend_api_error_parsing_server_list_response_failed"
+        case .networkProtectionClientFailedToEncodeRegisterKeyRequest: return "m_netp_backend_api_error_encoding_register_request_body_failed"
+        case .networkProtectionClientFailedToFetchRegisteredServers: return "m_netp_backend_api_error_failed_to_fetch_registered_servers"
+        case .networkProtectionClientFailedToParseRegisteredServersResponse:
+            return "m_netp_backend_api_error_parsing_device_registration_response_failed"
+        case .networkProtectionClientFailedToFetchLocations: return "m_netp_backend_api_error_failed_to_fetch_locations"
+        case .networkProtectionClientFailedToParseLocationsResponse:
+            return "m_netp_backend_api_error_parsing_locations_response_failed"
+        case .networkProtectionClientInvalidAuthToken: return "m_netp_backend_api_error_invalid_auth_token"
+        case .networkProtectionKeychainErrorFailedToCastKeychainValueToData: return "m_netp_keychain_error_failed_to_cast_keychain_value_to_data"
+        case .networkProtectionKeychainReadError: return "m_netp_keychain_error_read_failed"
+        case .networkProtectionKeychainWriteError: return "m_netp_keychain_error_write_failed"
+        case .networkProtectionKeychainUpdateError: return "m_netp_keychain_error_update_failed"
+        case .networkProtectionKeychainDeleteError: return "m_netp_keychain_error_delete_failed"
+        case .networkProtectionWireguardErrorCannotLocateTunnelFileDescriptor: return "m_netp_wireguard_error_cannot_locate_tunnel_file_descriptor"
+        case .networkProtectionWireguardErrorInvalidState: return "m_netp_wireguard_error_invalid_state"
+        case .networkProtectionWireguardErrorFailedDNSResolution: return "m_netp_wireguard_error_failed_dns_resolution"
+        case .networkProtectionWireguardErrorCannotSetNetworkSettings: return "m_netp_wireguard_error_cannot_set_network_settings"
+        case .networkProtectionWireguardErrorCannotStartWireguardBackend: return "m_netp_wireguard_error_cannot_start_wireguard_backend"
+        case .networkProtectionWireguardErrorCannotSetWireguardConfig: return "m_netp_wireguard_error_cannot_set_wireguard_config"
+        case .networkProtectionFailedToLoadFromPreferences: return "m_netp_network_extension_error_failed_to_load_from_preferences"
+        case .networkProtectionFailedToSaveToPreferences: return "m_netp_network_extension_error_failed_to_save_to_preferences"
+        case .networkProtectionActivationRequestFailed: return "m_netp_network_extension_error_activation_request_failed"
+        case .networkProtectionDisconnected: return "m_netp_vpn_disconnect"
+        case .networkProtectionNoAccessTokenFoundError: return "m_netp_no_access_token_found_error"
+        case .networkProtectionVPNAccessRevoked: return "m_vpn_access_revoked"
+        case .networkProtectionUnmanagedSubscriptionError: return "m_vpn_access_unmanaged_error"
+        case .networkProtectionPixelStorageSetupFailure: return "m_netp_vpn_pixel_storage_setup_failure"
+        case .pixelFireSuppressedStorageError: return "m_pixel_fire_suppressed_storage_error"
+        case .networkProtectionMemoryWarning: return "m_netp_vpn_memory_warning"
+        case .networkProtectionMemoryCritical: return "m_netp_vpn_memory_critical"
+        case .networkProtectionUnhandledError: return "m_netp_unhandled_error"
+            
+        case .networkProtectionGeoswitchingOpened: return "m_netp_imp_geoswitching"
+        case .networkProtectionGeoswitchingSetNearest: return "m_netp_ev_geoswitching_set_nearest"
+        case .networkProtectionGeoswitchingSetCustom: return "m_netp_ev_geoswitching_set_custom"
+        case .networkProtectionGeoswitchingNoLocations: return "m_netp_ev_geoswitching_no_locations"
+
+        case .networkProtectionSnoozeEnabledFromStatusMenu: return "m_netp_snooze_enabled_status_menu"
+        case .networkProtectionSnoozeDisabledFromStatusMenu: return "m_netp_snooze_disabled_status_menu"
+        case .networkProtectionSnoozeDisabledFromLiveActivity: return "m_netp_snooze_disabled_live_activity"
+
+        case .networkProtectionClientFailedToFetchServerStatus: return "m_netp_server_migration_failed_to_fetch_status"
+        case .networkProtectionClientFailedToParseServerStatusResponse: return "m_netp_server_migration_failed_to_parse_response"
+
+        case .networkProtectionServerMigrationAttempt: return "m_netp_ev_server_migration_attempt"
+        case .networkProtectionServerMigrationAttemptSuccess: return "m_netp_ev_server_migration_attempt_success"
+        case .networkProtectionServerMigrationAttemptFailure: return "m_netp_ev_server_migration_attempt_failed"
+
+        case .networkProtectionDNSUpdateCustom: return "m_netp_ev_update_dns_custom"
+        case .networkProtectionDNSUpdateDefault: return "m_netp_ev_update_dns_default"
+
+        case .networkProtectionVPNConfigurationRemoved: return "m_netp_vpn_configuration_removed"
+        case .networkProtectionVPNConfigurationRemovalFailed: return "m_netp_vpn_configuration_removal_failed"
+
+        case .networkProtectionConfigurationInvalidPayload(let config): return "m_netp_vpn_configuration_\(config.rawValue)_invalid_payload"
+
+        case .networkProtectionAdapterEndTemporaryShutdownStateAttemptFailure: return "m_netp_adapter_end_temporary_shutdown_state_attempt_failure"
+        case .networkProtectionAdapterEndTemporaryShutdownStateRecoverySuccess: return "m_netp_adapter_end_temporary_shutdown_state_recovery_success"
+        case .networkProtectionAdapterEndTemporaryShutdownStateRecoveryFailure: return "m_netp_adapter_end_temporary_shutdown_state_recovery_failure"
+
+            // MARK: VPN tips
+
+        case .networkProtectionGeoswitchingTipShown: return "m_vpn_tip_geoswitching_shown"
+        case .networkProtectionGeoswitchingTipActioned: return "m_vpn_tip_geoswitching_actioned"
+        case .networkProtectionGeoswitchingTipDismissed: return "m_vpn_tip_geoswitching_dismissed"
+        case .networkProtectionGeoswitchingTipIgnored: return "m_vpn_tip_geoswitching_ignored"
+
+        case .networkProtectionSnoozeTipShown: return "m_vpn_tip_snooze_shown"
+        case .networkProtectionSnoozeTipActioned: return "m_vpn_tip_snooze_actioned"
+        case .networkProtectionSnoozeTipDismissed: return "m_vpn_tip_snooze_dismissed"
+        case .networkProtectionSnoozeTipIgnored: return "m_vpn_tip_snooze_ignored"
+
+        case .networkProtectionWidgetTipShown: return "m_vpn_tip_widget_shown"
+        case .networkProtectionWidgetTipActioned: return "m_vpn_tip_widget_actioned"
+        case .networkProtectionWidgetTipDismissed: return "m_vpn_tip_widget_dismissed"
+        case .networkProtectionWidgetTipIgnored: return "m_vpn_tip_widget_ignored"
+
+            // MARK: remote messaging pixels
+            
+        case .remoteMessageShown: return "m_remote_message_shown"
+        case .remoteMessageShownUnique: return "m_remote_message_shown_unique"
+        case .remoteMessageDismissed: return "m_remote_message_dismissed"
+        case .remoteMessageActionClicked: return "m_remote_message_action_clicked"
+        case .remoteMessagePrimaryActionClicked: return "m_remote_message_primary_action_clicked"
+        case .remoteMessageSecondaryActionClicked: return "m_remote_message_secondary_action_clicked"
+        case .remoteMessageSheet: return "m_remote_message_sheet"
+        case .remoteMessageCardShown: return "m_remote_message_card_shown"
+        case .remoteMessageCardClicked: return "m_remote_message_card_clicked"
+        case .remoteMessageImageLoadSuccess: return "m_remote_message_image_load_success"
+        case .remoteMessageImageLoadFailed: return "m_remote_message_image_load_failed"
+
+            // MARK: debug pixels
+
+        case .dbCrashDetected(let appIdentifier):
+            if let appIdentifier {
+                return "m_d_crash_\(appIdentifier)"
+            } else {
+                return "m_d_crash"
+            }
+        case .dbCrashDetectedDaily(let appIdentifier):
+            if let appIdentifier {
+                return "m_d_crash_\(appIdentifier)_daily"
+            } else {
+                return "m_d_crash_daily"
+            }
+        case .crashReportCRCIDMissing: return "m_crashreporting_crcid-missing"
+        case .crashReportingSubmissionFailed: return "m_crashreporting_submission-failed"
+        case .crashOnCrashHandlersSetUp: return "m_d_crash_on_handlers_setup"
+        case .dbContainerInitializationError: return "m_d_database_container_error"
+        case .dbInitializationError: return "m_d_dbie"
+        case .dbSaveExcludedHTTPSDomainsError: return "m_d_dbsw"
+        case .dbSaveBloomFilterError: return "m_d_dbsb"
+        case .dbRemoteMessagingSaveConfigError: return "m_d_db_rm_save_config"
+        case .dbRemoteMessagingUpdateMessageShownError: return "m_d_db_rm_update_message_shown"
+        case .dbRemoteMessagingUpdateMessageStatusError: return "m_d_db_rm_update_message_status"
+        case .dbLocalAuthenticationError: return "m_d_local_auth_error"
+
+        case .debugTabSwitcherDidChangeInvalidState: return "m_debug_tabswitcher_didchange_invalidstate"
+        case .debugTabsModelCrossModeMismatch: return "m_debug_tabs-model_cross-mode-mismatch"
+
+        case .debugBookmarksMigratedMoreThanOnce: return "m_debug_bookmarks_migrated-more-than-once"
+            
+        case .configurationFetchInfo: return "m_d_cfgfetch"
+        case .couldNotLoadConfiguration(let configuration, let target):
+            switch target {
+            case .app: return "m_debug_\(configuration.rawValue)_load_failed".lowercased()
+            case .vpn: return "m_debug_\(configuration.rawValue)_load_failed_\(target.rawValue)".lowercased()
+            }
+            
+        case .couldNotParseConfiguration(let configuration, let target):
+            switch target {
+            case .app: return "m_debug_\(configuration.rawValue)_parse_failed".lowercased()
+            case .vpn: return "m_debug_\(configuration.rawValue)_parse_failed_\(target.rawValue)".lowercased()
+            }
+
+        case .trackerDataReloadFailed: return "m_d_tds_r"
+        case .fileStoreWriteFailed: return "m_d_fswf"
+        case .fileStoreCoordinatorFailed: return "m_d_configuration_file_coordinator_error"
+        case .privacyConfigurationReloadFailed: return "m_d_pc_r"
+            
+        case .contentBlockingCompilationFailed(let listType, let component):
+            return "m_d_content_blocking_\(listType)_\(component)_compilation_failed"
+            
+        case .contentBlockingLookupRulesSucceeded: return "m_content_blocking_lookup_rules_succeeded"
+        case .contentBlockingFetchLRCSucceeded: return "m_content_blocking_fetch_lrc_succeeded"
+        case .contentBlockingNoMatchInLRC: return "m_content_blocking_no_match_in_lrc"
+        case .contentBlockingLRCMissing: return "m_content_blocking_lrc_missing"
+
+        case .contentBlockingCompilationTaskPerformance(let iterationCount, let timeBucketAggregation):
+            return "m_content_blocking_compilation_loops_\(iterationCount)_time_\(timeBucketAggregation)"
+        case .ampBlockingRulesCompilationFailed: return "m_debug_amp_rules_compilation_failed"
+
+        case .webKitDidTerminate: return "m_d_wkt"
+        case .webKitDidTerminateDuringWarmup: return "m_d_webkit-terminated-during-warmup"
+        case .webKitTerminationDidReloadCurrentTab: return "m_d_wktct"
+
+        case .webKitWarmupUnexpectedDidFinish: return "m_d_webkit-warmup-unexpected-did-finish"
+        case .webKitWarmupUnexpectedDidTerminate: return "m_d_webkit-warmup-unexpected-did-terminate"
+
+        case .backgroundTaskSubmissionFailed: return "m_background-task_submission-failed"
+            
+        case .blankOverlayNotDismissed: return "m_d_ovs"
+            
+        case .cookieDeletionTime(let aggregation):
+            return "m_debug_cookie-clearing-time-\(aggregation)"
+        case .clearDataInDefaultPersistence(let aggregation):
+            return "m_debug_legacy-data-clearing-time-\(aggregation)"
+        case .cookieDeletionLeftovers: return "m_cookie_deletion_leftovers"
+
+        case .webkitWarmupStart(let appState):
+            return "m_webkit-warmup-start-\(appState)"
+        case .webkitWarmupFinished(let appState):
+            return "m_webkit-warmup-finished-\(appState)"
+
+        case .cachedTabPreviewsExceedsTabCount: return "m_d_tpetc"
+        case .cachedTabPreviewRemovalError: return "m_d_tpre"
+            
+        case .missingDownloadedFile: return "m_d_missing_downloaded_file"
+            
+        case .compilationResult(result: let result, waitTime: let waitTime, appState: let appState):
+            return "m_compilation_result_\(result)_time_\(waitTime)_state_\(appState)"
+            
+        case .emailAutofillKeychainError: return "m_email_autofill_keychain_error"
+        
+        case .debugBookmarksInitialStructureQueryFailed: return "m_d_bookmarks-initial-structure-query-failed"
+        case .debugBookmarksStructureLost: return "m_d_bookmarks_structure_lost"
+        case .debugAppDelegateInitToLaunchTime: return "m_d_app_delegate_init_to_launch_time"
+        case .debugBookmarksStructureNotRecovered: return "m_d_bookmarks_structure_not_recovered"
+        case .debugBookmarksInvalidRoots: return "m_d_bookmarks_invalid_roots"
+        case .debugBookmarksValidationFailed: return "m_d_bookmarks_validation_failed"
+        
+        case .debugBookmarksNoDBSchemeFound: return "m_debug_bookmarks_no_db_scheme_found"
+        case .debugBookmarksUnableToLoadPersistentStores: return "m_debug_bookmarks_unable_to_load_persistent_stores"
+        case .debugBookmarksErrorCreatingTopLevelBookmarksFolder: return "m_debug_bookmarks_error_creating_top_level_bookmarks_folder"
+        case .debugBookmarksErrorCreatingTopLevelFavoritesFolder: return "m_debug_bookmarks_error_creating_top_level_favorites_folder"
+        case .debugBookmarksCouldNotFixBookmarkFolder: return "m_debug_bookmarks_could_not_fix_bookmark_folder"
+        case .debugBookmarksCouldNotFixFavoriteFolder: return "m_debug_bookmarks_could_not_fix_favorite_folder"
+        case .debugBookmarksCouldNotPrepareDBStructure: return "m_debug_bookmarks_could_not_prepare_db_structure"
+        case .debugBookmarksCouldNotWriteToDB: return "m_debug_bookmarks_could_not_write_to_db"
+        case .debugBookmarksCouldNotGetFavoritesOrder: return "m_debug_bookmarks_could_not_get_favorites_order"
+        case .debugBookmarksCouldNotPrepareDatabase: return "m_debug_bookmarks_could_not_prepare_database"
+        case .debugBookmarksTopFolderSaveFailed: return "m_debug_bookmarks_top_folder_save_failed"
+
+        case .debugBookmarksPendingDeletionFixed: return "m_debug_bookmarks_pending_deletion_fixed"
+        case .debugBookmarksPendingDeletionRepairError: return "m_debug_bookmarks_pending_deletion_repair_error"
+
+        case .debugCannotClearObservationsDatabase: return "m_d_cannot_clear_observations_database"
+        case .debugWebsiteDataStoresNotClearedMultiple: return "m_d_wkwebsitedatastoresnotcleared_multiple"
+        case .debugWebsiteDataStoresNotClearedOne: return "m_d_wkwebsitedatastoresnotcleared_one"
+        case .debugWebsiteDataStoresCleared: return "m_d_wkwebsitedatastorescleared"
+        case .fireRemoveAllContainersAfterDelaySuccess: return "m_fire_clear_website_data_remove_all_containers_after_delay_success"
+        case .fireRemoveAllContainersAfterDelayFailure: return "m_fire_clear_website_data_remove_all_containers_after_delay_failure"
+
+        case .debugFailedToCreateAppConfigurationUserDefaultsInAIChatSettingsMigration: return "m_debug_failed-to-create-app-configuration-during-aichat-settings-migration"
+
+            // MARK: Tab interaction state debug pixels
+
+        case .tabInteractionStateSourceMissingRootDirectory:
+            return "m_d_tab-interaction-state-source_missing-root-directory"
+        case .tabInteractionStateSourceFailedToWrite:
+            return "m_d_tab-interaction-state-source_failed-to-write"
+
+        case .tabInteractionStateFailedToRestore:
+            return "m_d_tab-interaction-state_failed-to-restore"
+        case .tabInteractionStateRestorationTime(let aggregation):
+            return "m_d_tab-interaction-state_restoration-time-\(aggregation)"
+
+            // MARK: Default Browser Pixels
+
+        case .debugSetAsDefaultBrowserSuccessfulResult: return "m_debug_set-default-browser_successful-result"
+        case .debugSetAsDefaultBrowserMaxNumberOfAttemptsFailure: return "m_debug_set-default-browser_failure-max-number-of-attempts-reached"
+        case .debugSetAsDefaultBrowserMaxNumberOfAttemptsNoExistingResultPersistedFailure: return "m_debug_set-default-browser_failure-max-number-of-attempts-reached-no-persisted-result"
+        case .debugSetAsDefaultBrowserUnknownFailure: return "m_debug_set-default-browser_failure-unknown-error"
+
+        case .debugDefaultBrowserPromptFailedToRetrieveCurrentActivity: return "m_debug_set-as-default-prompt_failed-to-retrieve-current-activity"
+        case .debugDefaultBrowserPromptFailedToSaveCurrentActivity: return "m_debug_set-as-default-prompt_failed-to-save-current-activity"
+
+        case .debugDefaultBrowserPromptFailedToRetrieveLastModalShownDate: return "m_debug_set-as-default-prompt_failed-to-retrieve-last-modal-shown-date"
+        case .debugDefaultBrowserPromptFailedToSaveLastModalShownDate: return "m_debug_set-as-default-prompt_failed-to-save-last-modal-shown-date"
+        case .debugDefaultBrowserPromptFailedToRetrieveModalShownOccurrences: return "m_debug_set-as-default-prompt_failed-to-retrieve-modal-shown-occurrences"
+        case .debugDefaultBrowserPromptFailedToSaveModalShownOccurrences: return "m_debug_set-as-default-prompt_failed-to-save-modal-shown-occurrences"
+        case .debugDefaultBrowserPromptFailedToRetrievePermanentlyDismissedPrompt: return "m_debug_set-as-default-prompt_failed-to-retrieve-permanently-dismissed-prompt"
+        case .debugDefaultBrowserPromptFailedToSavePermanentlyDismissedPrompt: return "m_debug_set-as-default-prompt_failed-to-save-permanently-dismissed-prompt"
+
+        case .debugDefaultBrowserPromptFailedToRetrieveUserType: return "m_debug_set-as-default-prompt_failed-to-retrieve-user-type"
+        case .debugDefaultBrowserPromptFailedToSaveUserType: return "m_debug_set-as-default-prompt_failed-to-save-user-type"
+
+        case .debugDefaultBrowserPromptFailedToRetrieveInactiveModalShown: return "m_debug_set-as-default-prompt_failed-to-retrieve-inactive-modal-shown"
+        case .debugDefaultBrowserPromptFailedToSaveInactiveModalShown: return "m_debug_set-as-default-prompt_failed-to-save-inactive-modal-shown"
+
+        case .defaultBrowserPromptModalShown: return "m_set-as-default-prompt_modal-shown"
+        case .defaultBrowserPromptModalClosedButtonTapped: return "m_set-as-default-prompt_modal-closed-button-action"
+        case .defaultBrowserPromptModalSetAsDefaultBrowserButtonTapped: return "m_set-as-default-prompt_modal-set-as-default-browser-button-action"
+        case .defaultBrowserPromptModalDoNotAskAgainButtonTapped: return "m_set-as-default-prompt_modal-do-not-ask-again-button-action"
+
+        case .defaultBrowserPromptInactiveUserModalShown: return "m_set-as-default-prompt_inactive-user-modal-shown"
+        case .defaultBrowserPromptInactiveUserModalClosedButtonTapped: return "m_set-as-default-prompt_inactive-user_modal-closed-button-action"
+        case .defaultBrowserPromptInactiveUserModalSetAsDefaultBrowserButtonTapped: return "m_set-as-default-prompt_inactive-user_modal-set-as-default-browser-button-action"
+        case .defaultBrowserPromptInactiveUserModalMoreProtectionsButtonTapped: return "m_set-as-default-prompt_inactive-user_modal-more-protections-button-action"
+
+            // MARK: Debug Web View
+
+        case .debugWebViewInVisibleTabHidden: return "m_debug_webview_in_visible_tab_hidden"
+
+            // MARK: - Debug Prompt Coordination
+
+        case .debugPromptCoordinationFailedToSaveLastPresentationDate: return "m_debug_prompt-coordination_failed-to-save_last-presentation-date"
+        case .debugPromptCoordinationFailedToRetrieveLastPresentationDate: return "m_debug_prompt-coordination_failed-to-retrieve_last-presentation-date"
+
+            // MARK: Ad Attribution
+
+        case .adAttributionGlobalAttributedRulesDoNotExist: return "m_attribution_global_attributed_rules_do_not_exist"
+        case .adAttributionCompilationFailedForAttributedRulesList: return "m_attribution_compilation_failed_for_attributed_rules_list"
+            
+        case .adAttributionLogicUnexpectedStateOnInheritedAttribution: return "m_attribution_unexpected_state_on_inherited_attribution_2"
+        case .adAttributionLogicUnexpectedStateOnRulesCompiled: return "m_attribution_unexpected_state_on_rules_compiled"
+        case .adAttributionLogicUnexpectedStateOnRulesCompilationFailed: return "m_attribution_unexpected_state_on_rules_compilation_failed"
+        case .adAttributionDetectionInvalidDomainInParameter: return "m_attribution_invalid_domain_in_parameter"
+        case .adAttributionDetectionHeuristicsDidNotMatchDomain: return "m_attribution_heuristics_did_not_match_domain"
+        case .adAttributionLogicRequestingAttributionTimedOut: return "m_attribution_logic_requesting_attribution_timed_out"
+        case .adAttributionLogicWrongVendorOnSuccessfulCompilation: return "m_attribution_logic_wrong_vendor_on_successful_compilation"
+        case .adAttributionLogicWrongVendorOnFailedCompilation: return "m_attribution_logic_wrong_vendor_on_failed_compilation"
+            
+        case .bookmarkFolderExpected: return "m_d_bookmark_folder_expected"
+        case .bookmarksListIndexNotMatchingBookmark: return "m_d_bookmarks_list_index_not_matching_bookmark"
+        case .bookmarksListMissingFolder: return "m_d_bookmarks_list_missing_folder"
+        case .editorNewParentMissing: return "m_d_bookmarks_editor_new_parent_missing"
+        case .favoritesListIndexNotMatchingBookmark: return "m_d_favorites_list_index_not_matching_bookmark"
+        case .fetchingRootItemFailed(let modelType): return "m_d_bookmarks_fetching_root_item_failed_\(modelType.rawValue)"
+        case .indexOutOfRange(let modelType): return "m_d_bookmarks_index_out_of_range_\(modelType.rawValue)"
+        case .saveFailed(let modelType): return "m_d_bookmarks_view_model_save_failed_\(modelType.rawValue)"
+        case .missingParent(let objectType): return "m_d_bookmark_model_missing_parent_\(objectType.rawValue)"
+            
+        case .bookmarksCouldNotLoadDatabase: return "m_d_bookmarks_could_not_load_database"
+        case .bookmarksCouldNotPrepareDatabase: return "m_d_bookmarks_could_not_prepare_database"
+        case .bookmarksCouldNotMigrateDatabase: return "m_d_bookmarks_could_not_migrate_database"
+        case .bookmarksMigrationAlreadyPerformed: return "m_d_bookmarks_migration_already_performed"
+        case .bookmarksMigrationFailed: return "m_d_bookmarks_migration_failed"
+        case .bookmarksMigrationCouldNotPrepareDatabase: return "m_d_bookmarks_migration_could_not_prepare_database"
+        case .bookmarksMigrationCouldNotPrepareDatabaseOnFailedMigration:
+            return "m_d_bookmarks_migration_could_not_prepare_database_on_failed_migration"
+        case .bookmarksMigrationCouldNotRemoveOldStore: return "m_d_bookmarks_migration_could_not_remove_old_store"
+        case .bookmarksMigrationCouldNotPrepareMultipleFavoriteFolders: return "m_d_bookmarks_migration_could_not_prepare_multiple_favorite_folders"
+        case .bookmarksOpenFromToolbar: return "m_nav_bookmarks"
+        case .syncSignupDirect: return "m_sync_signup_direct"
+        case .syncSignupConnect: return "m_sync_signup_connect"
+        case .syncLogin: return "m_sync_login"
+        case .syncDaily: return "m_sync_daily"
+        case .syncDisabled: return "sync_disabled"
+        case .syncDisabledAndDeleted: return "sync_disabledanddeleted"
+        case .syncDuckAddressOverride: return "m_sync_duck_address_override"
+        case .syncSuccessRateDaily: return "m_sync_success_rate_daily"
+        case .syncLocalTimestampResolutionTriggered(let feature): return "m_sync_\(feature.name)_local_timestamp_resolution_triggered"
+        case .syncAiChatActiveDaily: return "m_sync_ai_chat_active_daily"
+        case .syncMigratedToFileStore: return "m_debug_sync_migrated_to_file_store"
+        case .syncFailedToInitFileStore: return "m_debug_sync_failed_to_init_file_store"
+        case .syncFailedToMigrateToFileStore: return "m_debug_sync_failed_to_migrate_to_file_store"
+        case .syncFailedToLoadAccount: return "m_d_sync_failed_to_load_account2"
+        case .syncFailedToSetupEngine: return "m_d_sync_failed_to_setup_engine2"
+        case .syncBookmarksObjectLimitExceededDaily: return "m_sync_bookmarks_object_limit_exceeded_daily"
+        case .syncCredentialsObjectLimitExceededDaily: return "m_sync_credentials_object_limit_exceeded_daily"
+        case .syncCreditCardsObjectLimitExceededDaily: return "m_sync_credit_cards_object_limit_exceeded_daily"
+        case .syncAiChatsObjectLimitExceededDaily: return "m_sync_ai_chats_object_limit_exceeded_daily"
+        case .syncBookmarksRequestSizeLimitExceededDaily: return "m_sync_bookmarks_request_size_limit_exceeded_daily"
+        case .syncCredentialsRequestSizeLimitExceededDaily: return "m_sync_credentials_request_size_limit_exceeded_daily"
+        case .syncCreditCardsRequestSizeLimitExceededDaily: return "m_sync_credit_cards_request_size_limit_exceeded_daily"
+        case .syncAiChatsRequestSizeLimitExceededDaily: return "m_sync_ai_chats_request_size_limit_exceeded_daily"
+        case .syncBookmarksTooManyRequestsDaily: return "m_sync_bookmarks_too_many_requests_daily"
+        case .syncCredentialsTooManyRequestsDaily: return "m_sync_credentials_too_many_requests_daily"
+        case .syncCreditCardsTooManyRequestsDaily: return "m_sync_credit_cards_too_many_requests_daily"
+        case .syncAiChatsTooManyRequestsDaily: return "m_sync_ai_chats_too_many_requests_daily"
+        case .syncSettingsTooManyRequestsDaily: return "m_sync_settings_too_many_requests_daily"
+        case .syncBookmarksValidationErrorDaily: return "m_sync_bookmarks_validation_error_daily"
+        case .syncCredentialsValidationErrorDaily: return "m_sync_credentials_validation_error_daily"
+        case .syncCreditCardsValidationErrorDaily: return "m_sync_credit_cards_validation_error_daily"
+        case .syncAiChatsValidationErrorDaily: return "m_sync_ai_chats_validation_error_daily"
+        case .syncSettingsValidationErrorDaily: return "m_sync_settings_validation_error_daily"
+
+        case .syncSentUnauthenticatedRequest: return "m_d_sync_sent_unauthenticated_request"
+        case .syncMetadataCouldNotLoadDatabase: return "m_d_sync_metadata_could_not_load_database"
+        case .syncBookmarksFailed: return "m_d_sync_bookmarks_failed"
+        case .syncBookmarksPatchCompressionFailed: return "m_d_sync_bookmarks_patch_compression_failed"
+        case .syncCredentialsProviderInitializationFailed: return "m_d_sync_credentials_provider_initialization_failed"
+        case .syncCredentialsFailed: return "m_d_sync_credentials_failed"
+        case .syncCredentialsPatchCompressionFailed: return "m_d_sync_credentials_patch_compression_failed"
+        case .syncCreditCardsProviderInitializationFailed: return "m_d_sync_credit_cards_provider_initialization_failed"
+        case .syncCreditCardsFailed: return "m_d_sync_credit_cards_failed"
+        case .syncCreditCardsPatchCompressionFailed: return "m_d_sync_credit_cards_patch_compression_failed"
+        case .syncAiChatsFailed: return "m_d_sync_ai_chats_failed"
+        case .syncAiChatsPatchCompressionFailed: return "m_d_sync_ai_chats_patch_compression_failed"
+        case .syncSettingsFailed: return "m_d_sync_settings_failed"
+        case .syncSettingsMetadataUpdateFailed: return "m_d_sync_settings_metadata_update_failed"
+        case .syncSettingsPatchCompressionFailed: return "m_d_sync_settings_patch_compression_failed"
+        case .syncSignupError: return "m_d_sync_signup_error"
+        case .syncLoginError: return "m_d_sync_login_error"
+        case .syncLogoutError: return "m_d_sync_logout_error"
+        case .syncUpdateDeviceError: return "m_d_sync_update_device_error"
+        case .syncRemoveDeviceError: return "m_d_sync_remove_device_error"
+        case .syncDeleteAccountError: return "m_d_sync_delete_account_error"
+        case .syncLoginExistingAccountError: return "m_d_sync_login_existing_account_error"
+        case .syncSecureStorageReadError: return "m_d_sync_secure_storage_error"
+        case .syncSecureStorageDecodingError: return "sync_secure_storage_decoding_error"
+        case .syncAccountRemoved(let reason): return "sync_account_removed_reason_\(reason)"
+
+        case .syncAskUserToSwitchAccount: return "sync_ask_user_to_switch_account"
+        case .syncUserAcceptedSwitchingAccount: return "sync_user_accepted_switching_account"
+        case .syncUserCancelledSwitchingAccount: return "sync_user_cancelled_switching_account"
+        case .syncUserSwitchedAccount: return "sync_user_switched_account"
+        case .syncUserSwitchedLogoutError: return "sync_user_switched_logout_error"
+        case .syncUserSwitchedLoginError: return "sync_user_switched_login_error"
+
+        case .syncGetOtherDevices: return "sync_get_other_devices"
+        case .syncGetOtherDevicesCopy: return "sync_get_other_devices_copy"
+        case .syncGetOtherDevicesShare: return "sync_get_other_devices_share"
+
+        case .syncPromoDisplayed: return "sync_promotion_displayed"
+        case .syncPromoConfirmed: return "sync_promotion_confirmed"
+        case .syncPromoDismissed: return "sync_promotion_dismissed"
+
+        case .syncRecoveryPromptDisplayed: return "sync_recovery_prompt_displayed"
+        case .syncRecoveryPromptSyncWithAnotherDeviceTapped: return "sync_recovery_prompt_sync_with_another_device_tapped"
+        case .syncRecoveryPromptShowAlternativesTapped: return "sync_recovery_prompt_show_alternatives_tapped"
+        case .syncRecoveryPromptDismissed: return "sync_recovery_prompt_dismissed"
+
+        case .syncRecoveryAlternativeDisplayed: return "sync_recovery_alternative_displayed"
+        case .syncRecoveryAlternativeScanRecoveryCodeTapped: return "sync_recovery_alternative_scan_recovery_code_tapped"
+        case .syncRecoveryAlternativeBackupThisDeviceTapped: return "sync_recovery_alternative_backup_this_device_tapped"
+        case .syncRecoveryAlternativeDismissed: return "sync_recovery_alternative_dismissed"
+
+        case .syncAutoRestoreOnboardingPromptShownUnique: return "sync-auto-restore_onboarding_prompt_shown_unique"
+        case .syncAutoRestoreOnboardingRestoreTappedUnique: return "sync-auto-restore_onboarding_restore_tapped_unique"
+        case .syncAutoRestoreOnboardingSkipTappedUnique: return "sync-auto-restore_onboarding_skip_tapped_unique"
+
+        case .syncAutoRestoreToggleShown: return "sync-auto-restore_toggle_shown"
+        case .syncAutoRestoreToggleOptedOut: return "sync-auto-restore_toggle_opted_out"
+
+        case .syncAutoRestoreSettingsReadyShown: return "sync-auto-restore_settings_ready_shown"
+        case .syncAutoRestoreSettingsRestoreTapped: return "sync-auto-restore_settings_restore_tapped"
+        case .syncAutoRestoreSettingsSkipRestoreTapped: return "sync-auto-restore_settings_skip_restore_tapped"
+        case .syncAutoRestoreSettingsCancelled: return "sync-auto-restore_settings_cancelled"
+        case .syncAutoRestoreSettingsManualRecoveryShown: return "sync-auto-restore_settings_manual_recovery_shown"
+
+        case .syncAutoRestoreSettingsPageShown: return "sync-auto-restore_settings_page_shown"
+        case .syncAutoRestoreSettingsPageToggleEnabled: return "sync-auto-restore_settings_page_toggle_enabled"
+        case .syncAutoRestoreSettingsPageToggleDisabled: return "sync-auto-restore_settings_page_toggle_disabled"
+
+        case .syncAutoRestoreSuccess: return "sync-auto-restore_success"
+        case .syncAutoRestoreFailure: return "sync-auto-restore_failure"
+        case .syncAutoRestorePreservedAccountCleared: return "sync-auto-restore_preserved_account_cleared"
+        case .syncAutoRestorePreservedAccountClearFailed: return "sync-auto-restore_preserved_account_clear_failed"
+
+        case .syncSetupBarcodeScreenShown: return "sync_setup_barcode_screen_shown"
+        case .syncSetupBarcodeScannerSuccess: return "sync_setup_barcode_scanner_success"
+        case .syncSetupBarcodeScannerFailed: return "sync_setup_barcode_scanner_failed"
+        case .syncSetupBarcodeCodeCopied: return "sync_setup_barcode_code_copied"
+        case .syncSetupManualCodeEntryScreenShown: return "sync_setup_manual_code_entry_screen_shown"
+        case .syncSetupManualCodeEnteredSuccess: return "sync_setup_manual_code_entered_success"
+        case .syncSetupManualCodeEnteredFailed: return "sync_setup_manual_code_entered_failed"
+        case .syncSetupEndedAbandoned: return "sync_setup_ended_abandoned"
+        case .syncSetupEndedSuccessful: return "sync_setup_ended_successful"
+        case .syncSetupDeepLinkFlowStarted: return "sync_setup_deep_link_flow_started"
+        case .syncSetupDeepLinkFlowSuccess: return "sync_setup_deep_link_flow_success"
+        case .syncSetupDeepLinkFlowAbandoned: return "sync_setup_deep_link_flow_abandoned"
+        case .syncSetupDeepLinkFlowTimeout: return "sync_setup_deep_link_timeout"
+
+        case .swipeTabsUsedDaily: return "m_swipe-tabs-used-daily"
+        case .swipeToOpenNewTab: return "m_addressbar_swipe_new_tab"
+
+        case .temporaryTelemetrySettingsClearDataAnimation(let value): return "m_temporary-telemetry_settings_clear-data-animation_\(value)"
+        case .temporaryTelemetrySettingsCustomizedAddressBarButton(let value): return "m_temporary-telemetry_settings_customized-address-bar-button_\(value)"
+        case .temporaryTelemetrySettingsCustomizedToolbarButton(let value): return "m_temporary-telemetry_settings_customized-toolbar-button_\(value)"
+
+        case .bookmarksCleanupFailed: return "m_d_bookmarks_cleanup_failed"
+        case .bookmarksCleanupAttemptedWhileSyncWasEnabled: return "m_d_bookmarks_cleanup_attempted_while_sync_was_enabled"
+        case .favoritesCleanupFailed: return "m_d_favorites_cleanup_failed"
+        case .bookmarksFaviconsFetcherStateStoreInitializationFailed: return "m_d_bookmarks_favicons_fetcher_state_store_initialization_failed"
+        case .bookmarksFaviconsFetcherFailed: return "m_d_bookmarks_favicons_fetcher_failed"
+            
+        case .credentialsDatabaseCleanupFailed: return "m_d_credentials_database_cleanup_failed_2"
+        case .credentialsCleanupAttemptedWhileSyncWasEnabled: return "m_d_credentials_cleanup_attempted_while_sync_was_enabled"
+
+        case .creditCardsDatabaseCleanupFailed: return "m_d_credit_cards_database_cleanup_failed"
+        case .creditCardsCleanupAttemptedWhileSyncWasEnabled: return "m_d_credit_cards_cleanup_attempted_while_sync_was_enabled"
+
+        case .invalidPayload(let configuration): return "m_d_\(configuration.rawValue)_invalid_payload".lowercased()
+            
+            // MARK: - InContext Email Protection
+        case .emailIncontextPromptDisplayed: return "m_email_incontext_prompt_displayed"
+        case .emailIncontextPromptConfirmed: return "m_email_incontext_prompt_confirmed"
+        case .emailIncontextPromptDismissed: return "m_email_incontext_prompt_dismissed"
+        case .emailIncontextPromptDismissedPersistent: return "m_email_incontext_prompt_dismissed_persisted"
+        case .emailIncontextModalDisplayed: return "m_email_incontext_modal_displayed"
+        case .emailIncontextModalDismissed: return "m_email_incontext_modal_dismissed"
+        case .emailIncontextModalExitEarly: return "m_email_incontext_modal_exit_early"
+        case .emailIncontextModalExitEarlyContinue: return "m_email_incontext_modal_exit_early_continue"
+            
+        case .compilationFailed: return "m_d_compilation_failed"
+            // MARK: - Return user measurement
+        case .debugReturnUserAddATB: return "m_debug_return_user_add_atb"
+        case .debugReturnUserUpdateATB: return "m_debug_return_user_update_atb"
+            
+        // MARK: - Toggle reports
+        case .protectionToggledOffBreakageReport: return "m_protection-toggled-off-breakage-report"
+        case .toggleProtectionsDailyCount: return "m_toggle-protections-daily-count"
+        case .toggleReportDoNotSend: return "m_toggle-report-do-not-send"
+        case .toggleReportDismiss: return "m_toggle-report-dismiss"
+            
+        // MARK: - Apple Ad Attribution
+        case .appleAdAttribution: return "m_apple-ad-attribution"
+
+        // MARK: - Page refresh toasts
+        case .pageRefreshThreeTimesWithin20Seconds: return "m_reload-three-times-within-20-seconds"
+
+        case .siteNotWorkingShown: return "m_site-not-working_shown"
+        case .siteNotWorkingWebsiteIsBroken: return "m_site-not-working_website-is-broken"
+
+        // MARK: - History debug
+        case .historyStoreLoadFailed: return "m_debug_history-store-load-failed"
+        case .historyRemoveFailed: return "m_debug_history-remove-failed"
+        case .historyReloadFailed: return "m_debug_history-reload-failed"
+        case .historyCleanEntriesFailed: return "m_debug_history-clean-entries-failed"
+        case .historyCleanVisitsFailed: return "m_debug_history-clean-visits-failed"
+        case .historySaveFailed: return "m_debug_history-save-failed"
+        case .historyInsertVisitFailed: return "m_debug_history-insert-visit-failed"
+        case .historyRemoveVisitsFailed: return "m_debug_history-remove-visits-failed"
+        case .historyLoadTabHistoryFailed: return "m_debug_history-load-tab-history-failed"
+        case .historyInsertTabHistoryFailed: return "m_debug_history-insert-tab-history-failed"
+        case .historyRemoveTabHistoryFailed: return "m_debug_history-remove-tab-history-failed"
+        case .historyCleanOrphanedTabHistoryFailed: return "m_debug_history-clean-orphaned-tab-history-failed"
+
+
+        // MARK: Subscription
+        case .subscriptionOfferScreenImpression: return "m_privacy-pro_offer_screen_impression"
+        case .subscriptionPurchaseAttempt: return "m_privacy-pro_terms-conditions_subscribe_click"
+        case .subscriptionPurchaseFailureOther: return "m_privacy-pro_app_subscription-purchase_failure_other"
+        case .subscriptionPurchaseFailureStoreError: return "m_privacy-pro_app_subscription-purchase_failure_store"
+        case .subscriptionPurchaseFailureAccountNotCreated: return "m_privacy-pro_app_subscription-purchase_failure_account-creation"
+        case .subscriptionPurchaseFailureBackendError: return "m_privacy-pro_app_subscription-purchase_failure_backend"
+        case .subscriptionPurchaseSuccess: return "m_privacy-pro_app_subscription-purchase_success"
+        case .subscriptionRestorePurchaseOfferPageEntry: return "m_privacy-pro_offer_restore-purchase_click"
+        case .subscriptionRestorePurchaseClick: return "m_privacy-pro_app-settings_restore-purchase_click"
+        case .subscriptionRestorePurchaseEmailStart: return "m_privacy-pro_activate-subscription_enter-email_click"
+        case .subscriptionRestorePurchaseStoreStart: return "m_privacy-pro_activate-subscription_restore-purchase_click"
+        case .subscriptionRestorePurchaseEmailSuccess: return "m_privacy-pro_app_subscription-restore-using-email_success"
+        case .subscriptionRestorePurchaseStoreSuccess: return "m_privacy-pro_app_subscription-restore-using-store_success"
+        case .subscriptionRestorePurchaseStoreFailureNotFound: return "m_privacy-pro_app_subscription-restore-using-store_failure_not-found"
+        case .subscriptionRestorePurchaseStoreFailureOther: return "m_privacy-pro_app_subscription-restore-using-store_failure_other"
+        case .subscriptionRestoreAfterPurchaseAttempt: return "m_privacy-pro_app_subscription-restore-after-purchase-attempt_success"
+        case .subscriptionActivated: return "m_privacy-pro_app_subscription_activated_u"
+        case .subscriptionWelcomeAddDevice: return "m_privacy-pro_welcome_add-device_click_u"
+        case .subscriptionWelcomeVPN: return "m_privacy-pro_welcome_vpn_click_u"
+        case .subscriptionWelcomePersonalInformationRemoval: return "m_privacy-pro_welcome_personal-information-removal_click_u"
+        case .subscriptionWelcomeAIChat: return "m_privacy-pro_welcome_ai-chat_click_u"
+        case .subscriptionWelcomeIdentityRestoration: return "m_privacy-pro_welcome_identity-theft-restoration_click_u"
+        case .ddgSubscriptionSettings: return "m_privacy-pro_settings_screen_impression"
+        case .subscriptionVPNSettings: return "m_privacy-pro_app-settings_vpn_click"
+        case .subscriptionPersonalInformationRemovalSettings: return "m_privacy-pro_app-settings_personal-information-removal_click"
+        case .subscriptionIdentityRestorationSettings: return "m_privacy-pro_app-settings_identity-theft-restoration_click"
+        case .ddgSubscriptionManagementEmail: return "m_privacy-pro_manage-email_edit_click"
+        case .ddgSubscriptionManagementPlanBilling: return "m_privacy-pro_settings_change-plan-or-billing_click"
+        case .ddgSubscriptionManagementRemoval: return "m_privacy-pro_settings_remove-from-device_click"
+        case .subscriptionSuccessfulSubscriptionAttribution: return "m_subscribe"
+        case .subscriptionKeychainAccessError: return "m_privacy-pro_keychain_access_error"
+            // Auth
+        case .subscriptionAuthV2GetTokensError2: return "m_privacy-pro_auth_v2_get_tokens_error2"
+
+        case .settingsSubscriptionAccountWithNoSubscriptionFound: return "m_settings_privacy-pro_account_with_no_subscription_found"
+
+        case .subscriptionActivatingRestoreErrorMissingAccountOrTransactions: return "m_privacy-pro_activating_restore_error_missing_account_or_transactions"
+        case .subscriptionActivatingRestoreErrorPastTransactionAuthenticationError: return "m_privacy-pro_activating_restore_error_past_transaction_authentication_error"
+        case .subscriptionActivatingRestoreErrorFailedToObtainAccessToken: return "m_privacy-pro_activating_restore_error_failed_to_obtain_access_token"
+        case .subscriptionActivatingRestoreErrorFailedToFetchAccountDetails: return "m_privacy-pro_activating_restore_error_failed_to_fetch_account_details"
+        case .subscriptionActivatingRestoreErrorFailedToFetchSubscriptionDetails: return "m_privacy-pro_activating_restore_error_failed_to_fetch_subscription_details"
+        case .subscriptionActivatingRestoreErrorSubscriptionExpired: return "m_privacy-pro_activating_restore_error_subscription_expired"
+
+        case .subscriptionOnboardingPromotionImpression: return "m_privacy-pro_onboarding_promotion_impression"
+
+        case .subscriptionOnboardingPromotionTap: return "m_privacy-pro_onboarding_promotion_tap"
+
+        case .subscriptionOnboardingPromotionDismiss: return "m_privacy-pro_onboarding_promotion_dismiss"
+
+        case .subscriptionSkippedOnboardingPromotionImpression: return "m_privacy-pro_skipped_onboarding_promotion_impression"
+        case .subscriptionSkippedOnboardingPromotionTap: return "m_privacy-pro_skipped_onboarding_promotion_tap"
+        case .subscriptionSkippedOnboardingPromotionDismiss: return "m_privacy-pro_skipped_onboarding_promotion_dismiss"
+
+        // Win-back Offer
+        case .subscriptionWinBackOfferLaunchPromptShown: return "m_privacy-pro_winback_launch_prompt_shown"
+        case .subscriptionWinBackOfferLaunchPromptCTAClicked: return "m_privacy-pro_winback_launch_prompt_clicked"
+        case .subscriptionWinBackOfferLaunchPromptDismissed: return "m_privacy-pro_winback_launch_prompt_dismissed"
+        case .subscriptionWinBackOfferSettingsLoggedOutOfferShown: return "m_privacy-pro_winback_settings_logged_out_offer_shown"
+        case .subscriptionWinBackOfferSettingsLoggedOutOfferCTAClicked: return "m_privacy-pro_winback_settings_logged_out_offer_clicked"
+        case .subscriptionWinBackOfferSettingsLoggedInOfferShown: return "m_privacy-pro_winback_settings_logged_in_offer_shown"
+        case .subscriptionWinBackOfferSubscriptionSettingsShown: return "m_privacy-pro_winback_subscription_settings_shown"
+        case .subscriptionWinBackOfferSubscriptionSettingsCTAClicked: return "m_privacy-pro_winback_subscription_settings_clicked"
+
+        // Free Trial Journey
+        case .privacyProFreeTrialStart: return "m_privacy-pro_freetrial_start"
+        case .privacyProFreeTrialVPNActivation: return "m_privacy-pro_freetrial_vpn_activation"
+        case .privacyProFreeTrialPIRActivation: return "m_privacy-pro_freetrial_pir_activation"
+        case .privacyProFreeTrialDuckAIActivation: return "m_privacy-pro_freetrial_duck_ai_activation"
+
+        // MARK: Pixel Experiment
+        case .pixelExperimentEnrollment: return "pixel_experiment_enrollment"
+
+        // MARK: Settings
+        case .settingsPresented: return "m_settings_presented"
+        case .settingsPresentedFromMenu: return "m_settings_presented-from-menu"
+        case .settingsSetAsDefault: return "m_settings_set_as_default"
+        case .settingsVoiceSearchOn: return "m_settings_voice_search_on"
+        case .settingsVoiceSearchOff: return "m_settings_voice_search_off"
+        case .settingsWebTrackingProtectionOpen: return "m_settings_web_tracking_protection_open"
+        case .settingsGpcOn: return "m_settings_gpc_on"
+        case .settingsGpcOff: return "m_settings_gpc_off"
+        case .settingsGeneralAutocompleteOn: return "m_settings_general_autocomplete_on"
+        case .settingsGeneralAutocompleteOff: return "m_settings_general_autocomplete_off"
+        case .settingsPrivateSearchAutocompleteOn: return "m_settings_private_search_autocomplete_on"
+        case .settingsPrivateSearchAutocompleteOff: return "m_settings_private_search_autocomplete_off"
+        case .settingsRecentlyVisitedOn: return "m_settings_autocomplete_recently-visited_on"
+        case .settingsRecentlyVisitedOff: return "m_settings_autocomplete_recently-visited_off"
+        case .settingsAddressBarSelectorPressed: return "m_settings_address_bar_selector_pressed"
+        case .settingsAccessibilityOpen: return "m_settings_accessibility_open"
+
+        // legacy name is text size
+        case .settingsAccessiblityTextZoom: return "m_settings_accessiblity_text_size"
+
+        // Web
+        case .subscriptionOfferMonthlyPriceClick: return "m_privacy-pro_offer_monthly-price_click"
+        case .subscriptionOfferYearlyPriceClick: return "m_privacy-pro_offer_yearly-price_click"
+        case .subscriptionAddEmailSuccess: return "m_privacy-pro_app_add-email_success_u"
+        case .subscriptionWelcomeFAQClick: return "m_privacy-pro_welcome_faq_click_u"
+        
+        // Tier Options
+        case .subscriptionTierOptionsRequested: return "m_subscription_tier-options_requested"
+        case .subscriptionTierOptionsSuccess: return "m_subscription_tier-options_success"
+        case .subscriptionTierOptionsFailure: return "m_subscription_tier-options_failure"
+        case .subscriptionTierOptionsUnexpectedProTier: return "m_subscription_tier-options_unexpected-pro-tier"
+
+        // Plan Change
+        case .subscriptionViewAllPlansClick: return "m_subscription_settings_view-all-plans_click"
+        case .subscriptionUpgradeClick: return "m_subscription_settings_upgrade_click"
+        case .subscriptionCancelPendingDowngradeClick: return "m_subscription_settings_cancel-pending-downgrade_click"
+
+        case .networkProtectionFailureRecoveryStarted: return "m_netp_ev_failure_recovery_started"
+        case .networkProtectionFailureRecoveryFailed: return "m_netp_ev_failure_recovery_failed"
+        case .networkProtectionFailureRecoveryCompletedHealthy: return "m_netp_ev_failure_recovery_completed_server_healthy"
+        case .networkProtectionFailureRecoveryCompletedUnhealthy: return "m_netp_ev_failure_recovery_completed_server_unhealthy"
+
+        case .networkProtectionWidgetConnectAttempt: return "m_netp_widget_connect_attempt"
+        case .networkProtectionWidgetConnectSuccess: return "m_netp_widget_connect_success"
+        case .networkProtectionWidgetConnectCancelled: return "m_netp_widget_connect_cancelled"
+        case .networkProtectionWidgetConnectFailure: return "m_netp_widget_connect_failure"
+        case .networkProtectionWidgetDisconnectAttempt: return "m_netp_widget_disconnect_attempt"
+        case .networkProtectionWidgetDisconnectSuccess: return "m_netp_widget_disconnect_success"
+        case .networkProtectionWidgetDisconnectCancelled: return "m_netp_widget_disconnect_cancelled"
+        case .networkProtectionWidgetDisconnectFailure: return "m_netp_widget_disconnect_failure"
+
+        case .vpnControlCenterConnectAttempt: return "m_vpn_control-center_connect_attempt"
+        case .vpnControlCenterConnectSuccess: return "m_vpn_control-center_connect_success"
+        case .vpnControlCenterConnectCancelled: return "m_vpn_control-center_connect_cancelled"
+        case .vpnControlCenterConnectFailure: return "m_vpn_control-center_connect_failure"
+
+        case .vpnControlCenterDisconnectAttempt: return "m_vpn_control-center_disconnect_attempt"
+        case .vpnControlCenterDisconnectSuccess: return "m_vpn_control-center_disconnect_success"
+        case .vpnControlCenterDisconnectCancelled: return "m_vpn_control-center_disconnect_cancelled"
+        case .vpnControlCenterDisconnectFailure: return "m_vpn_control-center_disconnect_failure"
+
+        case .vpnShortcutConnectAttempt: return "m_vpn_shortcut_connect_attempt"
+        case .vpnShortcutConnectSuccess: return "m_vpn_shortcut_connect_success"
+        case .vpnShortcutConnectCancelled: return "m_vpn_shortcut_connect_cancelled"
+        case .vpnShortcutConnectFailure: return "m_vpn_shortcut_connect_failure"
+
+        case .vpnShortcutDisconnectAttempt: return "m_vpn_shortcut_disconnect_attempt"
+        case .vpnShortcutDisconnectSuccess: return "m_vpn_shortcut_disconnect_success"
+        case .vpnShortcutDisconnectCancelled: return "m_vpn_shortuct_disconnect_cancelled"
+        case .vpnShortcutDisconnectFailure: return "m_vpn_shortcut_disconnect_failure"
+
+        // MARK: Secure Vault
+        case .secureVaultL1KeyMigration: return "m_secure-vault_keystore_event_l1-key-migration"
+        case .secureVaultL2KeyMigration: return "m_secure-vault_keystore_event_l2-key-migration"
+        case .secureVaultL2KeyPasswordMigration: return "m_secure-vault_keystore_event_l2-key-password-migration"
+
+        // MARK: Report broken site flows
+        case .reportBrokenSiteShown: return "m_report-broken-site_shown"
+        case .reportBrokenSiteSent: return "m_report-broken-site_sent"
+
+        // MARK: New Tab Page baseline engagement
+        case .addFavoriteDaily: return "m_add_favorite_daily"
+        case .addBookmarkDaily: return "m_add_bookmark_daily"
+        case .favoriteLaunchedNTPDaily: return "m_favorite_launched_ntp_daily"
+        case .bookmarkLaunchedDaily: return "m_bookmark_launched_daily"
+        case .newTabPageDisplayedDaily: return "m_new_tab_page_displayed_daily"
+
+        // MARK: NTP after idle
+        case .ntpAfterIdleNTPShownAfterIdle: return "m_ntp_after_idle_ntp_shown_after_idle"
+        case .ntpAfterIdleNTPShownUserInitiated: return "m_ntp_after_idle_ntp_shown_user_initiated"
+        case .ntpAfterIdleReturnToPageTappedAfterIdle: return "m_ntp_after_idle_return_to_page_tapped_after_idle"
+        case .ntpAfterIdleReturnToPageTappedUserInitiated: return "m_ntp_after_idle_return_to_page_tapped_user_initiated"
+        case .ntpAfterIdleBarUsedAfterIdle: return "m_ntp_after_idle_bar_used_from_ntp_after_idle"
+        case .ntpAfterIdleBarUsedUserInitiated: return "m_ntp_after_idle_bar_used_from_ntp_user_initiated"
+        case .ntpAfterIdleToggleUsedAfterIdle: return "m_ntp_after_idle_toggle_used_from_ntp_after_idle"
+        case .ntpAfterIdleToggleUsedUserInitiated: return "m_ntp_after_idle_toggle_used_from_ntp_user_initiated"
+        case .ntpAfterIdleBackButtonUsedAfterIdle: return "m_ntp_after_idle_back_button_used_from_ntp_after_idle"
+        case .ntpAfterIdleBackButtonUsedUserInitiated: return "m_ntp_after_idle_back_button_used_from_ntp_user_initiated"
+        case .ntpAfterIdleAppBackgroundedAfterIdle: return "m_ntp_after_idle_app_backgrounded_from_ntp_after_idle"
+        case .ntpAfterIdleAppBackgroundedUserInitiated: return "m_ntp_after_idle_app_backgrounded_from_ntp_user_initiated"
+        case .ntpAfterIdleTabSwitcherSelectedAfterIdle: return "m_ntp_after_idle_tab_switcher_selected_from_ntp_after_idle"
+        case .ntpAfterIdleTabSwitcherSelectedUserInitiated: return "m_ntp_after_idle_tab_switcher_selected_from_ntp_user_initiated"
+        case .ntpAfterIdleSettingChangedToNewTab: return "m_ntp_after_idle_setting_changed_to_new_tab"
+        case .ntpAfterIdleSettingChangedToLastUsedTab: return "m_ntp_after_idle_setting_changed_to_last_used_tab"
+
+        // MARK: DuckPlayer
+        case .duckPlayerSettingsOpen: return "m_settings_duckplayer_open"
+        case .duckPlayerDailyUniqueView: return "duckplayer_daily-unique-view"
+        case .duckPlayerViewFromYoutubeViaMainOverlay: return "duckplayer_view-from_youtube_main-overlay"
+        case .duckPlayerViewFromYoutubeViaHoverButton: return "duckplayer_view-from_youtube_hover-button"
+        case .duckPlayerViewFromYoutubeAutomatic: return "duckplayer_view-from_youtube_automatic"
+        case .duckPlayerViewFromSERP: return "duckplayer_view-from_serp"
+        case .duckPlayerViewFromOther: return "duckplayer_view-from_other"
+        case .duckPlayerSettingAlwaysSettings: return "duckplayer_setting_always_settings"
+        case .duckPlayerSettingAlwaysDuckPlayer: return "duckplayer_setting_always_duck-player"
+        case .duckPlayerSettingsAlwaysOverlaySERP: return "duckplayer_setting_always_overlay_serp"
+        case .duckPlayerSettingsAlwaysOverlayYoutube: return "duckplayer_setting_always_overlay_youtube"
+        case .duckPlayerSettingsNeverOverlaySERP: return "duckplayer_setting_never_overlay_serp"
+        case .duckPlayerSettingsNeverOverlayYoutube: return "duckplayer_setting_never_overlay_youtube"
+        case .duckPlayerOverlayYoutubeImpressions: return "duckplayer_overlay_youtube_impressions"
+        case .duckPlayerOverlayYoutubeWatchHere: return "duckplayer_overlay_youtube_watch_here"
+        case .duckPlayerSettingNeverSettings: return "duckplayer_setting_never_settings"
+        case .duckPlayerSettingBackToDefault: return "duckplayer_setting_back-to-default"
+        case .duckPlayerWatchOnYoutube: return "duckplayer_watch_on_youtube"
+        case .duckPlayerSettingAlwaysOverlayYoutube: return "duckplayer_setting_always_overlay_youtube"
+        case .duckPlayerSettingNeverOverlayYoutube: return "duckplayer_setting_never_overlay_youtube"
+        case .duckPlayerContingencySettingsDisplayed: return "duckplayer_ios_contingency_settings-displayed"
+        case .duckPlayerContingencyLearnMoreClicked: return "duckplayer_ios_contingency_learn-more-clicked"
+        case .duckPlayerNewTabSettingOn: return "duckplayer_ios_newtab_setting-on"
+        case .duckPlayerNewTabSettingOff: return "duckplayer_ios_newtab_setting-off"
+        case .duckPlayerYouTubeSignInErrorImpression: return "duckplayer_youtube-signin-error_impression"
+        case .duckPlayerYouTubeAgeRestrictedErrorImpression: return "duckplayer_youtube-age-restricted-error_impression"
+        case .duckPlayerYouTubeNoEmbedErrorImpression: return "duckplayer_youtube-no-embed-error_impression"
+        case .duckPlayerYouTubeUnknownErrorImpression: return "duckplayer_youtube-unknown-error_impression"
+        case .duckPlayerYouTubeSignInErrorDaily: return "duckplayer_youtube-signin-error_daily-unique"
+        case .duckPlayerYouTubeAgeRestrictedErrorDaily: return "duckplayer_youtube-age-restricted-error_daily-unique"
+        case .duckPlayerYouTubeNoEmbedErrorDaily: return "duckplayer_youtube-no-embed-error_daily-unique"
+        case .duckPlayerYouTubeUnknownErrorDaily: return "duckplayer_youtube-unknown-error_daily-unique"
+        case .duckPlayerNativeYouTubeSignInErrorImpression: return "duckplayer_native_youtube-signin-error_impression"
+        case .duckPlayerNativeYouTubeAgeRestrictedErrorImpression: return "duckplayer_native_youtube-age-restricted-error_impression"
+        case .duckPlayerNativeYouTubeNoEmbedErrorImpression: return "duckplayer_native_youtube-no-embed-error_impression"
+        case .duckPlayerNativeYouTubeUnknownErrorImpression: return "duckplayer_native_youtube-unknown-error_impression"
+        case .duckPlayerNativeYouTubeSignInErrorDaily: return "duckplayer_native_youtube-signin-error_daily-unique"
+        case .duckPlayerNativeYouTubeAgeRestrictedErrorDaily: return "duckplayer_native_youtube-age-restricted-error_daily-unique"
+        case .duckPlayerNativeYouTubeNoEmbedErrorDaily: return "duckplayer_native_youtube-no-embed-error_daily-unique"
+        case .duckPlayerNativeYouTubeUnknownErrorDaily: return "duckplayer_native_youtube-unknown-error_daily-unique"
+
+        // MARK: Enhanced statistics
+        case .usageSegments: return "m_retention_segments"
+
+        // MARK: Certificate warnings
+        case .certificateWarningDisplayed(let errorType):
+            return "m_certificate_warning_displayed_\(errorType)"
+        case .certificateWarningLeaveClicked: return "m_certificate_warning_leave_clicked"
+        case .certificateWarningAdvancedClicked: return "m_certificate_warning_advanced_clicked"
+        case .certificateWarningProceedClicked: return "m_certificate_warning_proceed_clicked"
+
+        // MARK: Unified Feedback Form
+        case .pproFeedbackFeatureRequest: return "m_ppro_feedback_feature-request"
+        case .pproFeedbackGeneralFeedback: return "m_ppro_feedback_general-feedback"
+        case .pproFeedbackReportIssue: return "m_ppro_feedback_report-issue"
+        case .pproFeedbackFormShow: return "m_ppro_feedback_general-screen_show"
+        case .pproFeedbackActionsScreenShow: return "m_ppro_feedback_actions-screen_show"
+        case .pproFeedbackCategoryScreenShow: return "m_ppro_feedback_category-screen_show"
+        case .pproFeedbackSubcategoryScreenShow: return "m_ppro_feedback_subcategory-screen_show"
+        case .pproFeedbackSubmitScreenShow: return "m_ppro_feedback_submit-screen_show"
+        case .pproFeedbackSubmitScreenFAQClick: return "m_ppro_feedback_submit-screen-faq_click"
+            
+        // MARK: - WebView Error Page shown
+        case .webViewErrorPageShown: return "m_errorpageshown"
+
+        // MARK: - External Scheme Navigation
+        case .webViewExternalSchemeNavigationXSafariHTTPSStay: return "m_webview_external-scheme-navigation_x-safari-https_stay_daily"
+        case .webViewExternalSchemeNavigationXSafariHTTPSOpenInSafari: return "m_webview_external-scheme-navigation_x-safari-https_open-in-safari_daily"
+        case .webViewExternalSchemeNavigationXSafariHTTPSLoopDetected: return "m_webview_external-scheme-navigation_x-safari-https_loop-detected"
+        case .webViewExternalSchemeNavigationXSafariHTTPSLoopOpenInSafari: return "m_webview_external-scheme-navigation_x-safari-https_loop-open-in-safari_daily"
+
+        // MARK: - DuckPlayer FE Application Telemetry
+        case .duckPlayerLandscapeLayoutImpressions: return "duckplayer_landscape_layout_impressions"
+
+        // MARK: Browsing
+        case .stopPageLoad: return "m_stop-page-load"
+
+        // MARK: Launch time
+        case .appDidFinishLaunchingTime(let time): return "m_debug_app-did-finish-launching-time-\(time)"
+        case .appDidShowUITime(let time): return "m_debug_app-did-show-ui-time-2-\(time)"
+
+        // MARK: AI Chat
+        case .aiChatNoRemoteSettingsFound(let settings):
+            return "m_aichat_no_remote_settings_found-\(settings.lowercased())"
+        case .openAIChatFromAddressBar: return "m_aichat_addressbar_icon"
+        case .openAIChatFromWidgetFavorite: return "m_aichat-widget-favorite"
+        case .openAIChatFromWidgetQuickAction: return "m_aichat-widget-quickaction"
+        case .openAIChatFromWidgetControlCenter: return "m_aichat-widget-control-center"
+        case .openAIChatFromWidgetLockScreenComplication: return "m_aichat-widget-lock-screen-complication"
+        case .browsingMenuAIChatNewTabPage: return "m_aichat_menu_newtabpage"
+        case .browsingMenuAIChatWebPage: return "m_aichat_menu_webpage"
+        case .openAIChatFromIconShortcut: return "m_aichat-icon-shortcut"
+        case .openAIChatFromTabManager: return "m_aichat_tabmanager_icon"
+        case .voiceEntryPointTapped: return "m_aichat_voice_entry_point_tapped"
+        case .voiceSessionStarted: return "m_aichat_voice_session_started"
+        case .aiChatSettingsVoiceTurnedOff: return "m_aichat_settings_voice_turned_off"
+        case .aiChatSettingsVoiceTurnedOn: return "m_aichat_settings_voice_turned_on"
+        case .aiChatSettingsAddressBarTurnedOff: return "m_aichat_settings_address_bar_turned_off"
+        case .aiChatSettingsAddressBarTurnedOn: return "m_aichat_settings_address_bar_turned_on"
+        case .aiChatSettingsBrowserMenuTurnedOff: return "m_aichat_settings_browser_menu_turned_off"
+        case .aiChatSettingsBrowserMenuTurnedOn: return "m_aichat_settings_browser_menu_turned_on"
+        case .aiChatSettingsTabManagerTurnedOff: return "m_aichat_settings_tab_manager_turned_off"
+        case .aiChatSettingsTabManagerTurnedOn: return "m_aichat_settings_tab_manager_turned_on"
+        case .aiChatSettingsChatSuggestionsTurnedOff: return "m_aichat_settings_chat_suggestions_turned_off"
+        case .aiChatSettingsChatSuggestionsTurnedOn: return "m_aichat_settings_chat_suggestions_turned_on"
+        case .aiChatSettingsDisplayed: return "m_aichat_settings_displayed"
+        case .aiChatSettingsEnabled: return "m_aichat_settings_enabled"
+        case .aiChatSettingsDisabled: return "m_aichat_settings_disabled"
+        case .aiChatSettingsAutoContextEnabled: return "m_aichat_settings_auto_context_enabled"
+        case .aiChatSettingsAutoContextDisabled: return "m_aichat_settings_auto_context_disabled"
+        case .aiChatSettingsDefaultTogglePositionChanged: return "m_aichat_settings_default_toggle_position_changed"
+        case .aiChatSettingsSearchInputTurnedOff: return "m_aichat_settings_search_input_turned_off"
+        case .aiChatSettingsSearchInputTurnedOn: return "m_aichat_settings_search_input_turned_on"
+
+        case .aiChatOpen: return "m_aichat_open"
+        case .aiChatMetricStartNewConversation: return "m_aichat_start_new_conversation"
+        case .aiChatMetricStartNewConversationButtonClicked: return "m_aichat_start_new_conversation_button_clicked"
+        case .aiChatMetricOpenHistory: return "m_aichat_open_history"
+        case .aiChatMetricOpenMostRecentHistoryChat: return "m_aichat_open_most_recent_history_chat"
+        case .aiChatMetricSentPromptOngoingChat: return "m_aichat_sent_prompt_ongoing_chat"
+        case .aiChatMetricDuckAIKeyboardReturnPressed: return "m_aichat_duckai_keyboard_return_pressed"
+        case .aiChatInternalSwitchBarDisplayed: return "m_aichat_internal_switch_bar_displayed"
+        case .aiChatExperimentalAddressBarIsEnabledDaily: return "m_aichat_experimental_address_bar_is_enabled_daily"
+        case .aiChatContextualAutoAttachDAU: return "m_aichat_contextual_auto_attach_dau"
+        case .aiChatIsEnabledDaily: return "m_aichat_is_enabled_daily"
+
+        case .duckAiNativeStorageMigrationDoneUnique(let key): return "m_duck-ai_native-storage_migration_done_\(key)_unique"
+        case .duckAiNativeStorageMigrationDoneCount(let key): return "m_duck-ai_native-storage_migration_done_\(key)_count"
+        case .duckAiNativeStorageMigrationDoneBlankCount: return "m_duck-ai_native-storage_migration_done_blank_count"
+
+        case .duckAiNativeStorageInitSuccess: return "m_duck-ai_native-storage_init_success"
+        case .duckAiNativeStorageInitError: return "m_duck-ai_native-storage_init_error"
+        case .duckAiNativeStorageMigrationStarted: return "m_duck-ai_native-storage_migration_started"
+        case .duckAiNativeStorageMigrationAlreadyDone: return "m_duck-ai_native-storage_migration_already-done"
+        case .duckAiNativeStorageMigrationError: return "m_duck-ai_native-storage_migration_error"
+        case .duckAiNativeStorageSettingsPutError: return "m_duck-ai_native-storage_settings-put_error"
+        case .duckAiNativeStorageSettingsGetError: return "m_duck-ai_native-storage_settings-get_error"
+        case .duckAiNativeStorageSettingsDeleteError: return "m_duck-ai_native-storage_settings-delete_error"
+        case .duckAiNativeStorageChatPutError: return "m_duck-ai_native-storage_chat-put_error"
+        case .duckAiNativeStorageChatGetError: return "m_duck-ai_native-storage_chat-get_error"
+        case .duckAiNativeStorageChatDeleteError: return "m_duck-ai_native-storage_chat-delete_error"
+        case .duckAiNativeStorageFilePutError: return "m_duck-ai_native-storage_file-put_error"
+        case .duckAiNativeStorageFileGetError: return "m_duck-ai_native-storage_file-get_error"
+        case .duckAiNativeStorageFileListError: return "m_duck-ai_native-storage_file-list_error"
+        case .duckAiNativeStorageFileDeleteError: return "m_duck-ai_native-storage_file-delete_error"
+
+        case .aiChatOmnibarSidebarButtonTapped: return "m_aichat_omnibar_sidebar_button_tapped"
+        case .aiChatOmnibarNewChatButtonTapped: return "m_aichat_omnibar_new_chat_button_tapped"
+
+        case .aiChatSettingsMenuOpened: return "m_aichat_settings_menu_opened"
+        case .aiChatSettingsMenuSidebarTapped: return "m_aichat_settings_menu_sidebar_tapped"
+        case .aiChatSettingsMenuAIChatSettingsTapped: return "m_aichat_settings_menu_aichat_settings_tapped"
+        case .aiChatSettingsMenuNewChatTabTapped: return "m_aichat_settings_menu_new_chat_tab_tapped"
+            
+        case .aiChatTabSwitcherOpened: return "m_aichat_tab_switcher_opened"
+        case .aiChatFireButtonTapped: return "m_aichat_fire_button_tapped"
+
+        // MARK: New Address Bar Picker
+        case .aiChatNewAddressBarPickerDisplayed: return "m_aichat_new_address_bar_picker_displayed"
+        case .aiChatNewAddressBarPickerConfirmed: return "m_aichat_new_address_bar_picker_confirmed"
+        case .aiChatNewAddressBarPickerNotNow: return "m_aichat_new_address_bar_picker_not_now"
+        
+        // MARK: Experimental Omnibar Metrics
+        case .aiChatExperimentalOmnibarShown: return "m_aichat_experimental_omnibar_shown"
+        case .aiChatExperimentalOmnibarPromptSubmitted: return "m_aichat_experimental_omnibar_prompt_submitted"
+        case .aiChatExperimentalOmnibarQuerySubmitted: return "m_aichat_experimental_omnibar_query_submitted"
+        case .aiChatExperimentalOmnibarModeSwitched: return "m_aichat_experimental_omnibar_mode_switched"
+        case .aiChatExperimentalOmnibarSessionBothModes: return "m_aichat_experimental_omnibar_session_both_modes"
+        case .aiChatExperimentalOmnibarFirstSettingsViewed: return "m_aichat_experimental_omnibar_first_settings_viewed"
+        case .aiChatExperimentalOmnibarFirstEnabled: return "m_aichat_experimental_omnibar_first_enabled"
+        case .aiChatExperimentalOmnibarFirstInteraction: return "m_aichat_experimental_omnibar_first_interaction"
+        case .aiChatExperimentalOmnibarFirstSearchSubmission: return "m_aichat_experimental_omnibar_first_search_submission"
+        case .aiChatExperimentalOmnibarFirstPromptSubmission: return "m_aichat_experimental_omnibar_first_prompt_submission"
+        case .aiChatExperimentalOmnibarFullConversionUser: return "m_aichat_experimental_omnibar_full_conversion_user"
+        case .aiChatExperimentalOmnibarTextAreaFocused: return "m_aichat_experimental_omnibar_text_area_focused"
+        case .aiChatExperimentalOmnibarClearButtonPressed: return "m_aichat_experimental_omnibar_clear_button_pressed"
+        case .aiChatExperimentalOmnibarBackButtonPressed: return "m_aichat_experimental_omnibar_back_button_pressed"
+        case .aiChatExperimentalOmnibarKeyboardGoPressed: return "m_aichat_experimental_omnibar_keyboard_go_pressed"
+        case .aiChatExperimentalOmnibarFloatingSubmitPressed: return "m_aichat_experimental_omnibar_floating_submit_pressed"
+        case .aiChatExperimentalOmnibarFloatingReturnPressed: return "m_aichat_experimental_omnibar_floating_return_pressed"
+        case .aiChatExperimentalOmnibarSessionSummary: return "m_aichat_experimental_omnibar_session_summary"
+        case .aiChatExperimentalOmnibarDailyRetention: return "m_aichat_experimental_omnibar_daily_retention"
+        case .aiChatLegacyOmnibarShown: return "m_aichat_legacy_omnibar_shown"
+        case .aiChatLegacyOmnibarQuerySubmitted: return "m_aichat_legacy_omnibar_query_submitted"
+        case .aiChatLegacyOmnibarAichatButtonPressed: return "m_aichat_legacy_omnibar_aichat_button_pressed"
+        case .aiChatLegacyOmnibarBackButtonPressed: return "m_aichat_legacy_omnibar_back_button_pressed"
+
+        // MARK: iPad Toggle
+        case .aiChatIPadTogglePromptSubmitted: return "m_aichat_ipad_toggle_prompt_submitted"
+        case .aiChatIPadToggleURLSubmitted: return "m_aichat_ipad_toggle_url_submitted"
+        case .aiChatOmnibarQuerySubmittedIPadToggleEnabled: return "m_aichat_omnibar_query_submitted_ipad_toggle_enabled"
+        case .aiChatIPadToggleRecentChatSelectedPinned: return "m_aichat_ipad_toggle_recent_chat_selected_pinned"
+        case .aiChatIPadToggleRecentChatSelected: return "m_aichat_ipad_toggle_recent_chat_selected"
+        case .aiChatIPadToggleEnabledOnAppOpen: return "m_aichat_ipad_toggle_enabled_on_app_open"
+        case .aiChatIPadToggleDisabledOnAppOpen: return "m_aichat_ipad_toggle_disabled_on_app_open"
+        
+        // MARK: AI Chat History Deletion
+        case .aiChatHistoryDeleteSuccessful: return "m_aichat_history_delete_successful"
+        case .aiChatHistoryDeleteFailed: return "m_aichat_history_delete_failed"
+        case .aiChatSingleDeleteSuccessful: return "m_aichat_single_delete_successful"
+        case .aiChatSingleDeleteFailed: return "m_aichat_single_delete_failed"
+
+        // MARK: AI Chat Recent Chats
+        case .aiChatRecentChatSelectedPinned: return "m_aichat_recent_chat_selected_pinned"
+        case .aiChatRecentChatSelected: return "m_aichat_recent_chat_selected"
+
+        // MARK: AI Chat Contextual Mode
+        case .aiChatContextualSheetOpened: return "m_aichat_contextual_sheet_opened"
+        case .aiChatContextualSheetDismissed: return "m_aichat_contextual_sheet_dismissed"
+        case .aiChatContextualExpandButtonTapped: return "m_aichat_contextual_expand_button_tapped"
+        case .aiChatContextualNewChatButtonTapped: return "m_aichat_contextual_new_chat_button_tapped"
+        case .aiChatContextualQuickActionSummarizeSelected: return "m_aichat_contextual_quick_action_summarize_selected"
+        case .aiChatContextualPageContextPlaceholderShown: return "m_aichat_contextual_page_context_placeholder_shown"
+        case .aiChatContextualPageContextPlaceholderTapped: return "m_aichat_contextual_page_context_placeholder_tapped"
+        case .aiChatContextualPageContextAutoAttached: return "m_aichat_contextual_page_context_auto_attached"
+        case .aiChatContextualPageContextUpdatedOnNavigation: return "m_aichat_contextual_page_context_updated_on_navigation"
+        case .aiChatContextualPageContextManuallyAttachedNative: return "m_aichat_contextual_page_context_manually_attached_native"
+        case .aiChatContextualPageContextManuallyAttachedFrontend: return "m_aichat_contextual_page_context_manually_attached_frontend"
+        case .aiChatContextualPageContextRemovedNative: return "m_aichat_contextual_page_context_removed_native"
+        case .aiChatContextualPageContextRemovedFrontend: return "m_aichat_contextual_page_context_removed_frontend"
+        case .aiChatContextualPromptSubmittedWithContextNative: return "m_aichat_contextual_prompt_submitted_with_context_native"
+        case .aiChatContextualPromptSubmittedWithoutContextNative: return "m_aichat_contextual_prompt_submitted_without_context_native"
+        case .aiChatContextualSessionRestored: return "m_aichat_contextual_session_restored"
+        case .aiChatContextualFireButtonTapped: return "m_aichat_contextual_fire_button_tapped"
+        case .aiChatContextualFireButtonConfirmed: return "m_aichat_contextual_fire_button_confirmed"
+        case .aiChatContextualPageContextCollectionEmpty: return "m_aichat_contextual_page_context_collection_empty"
+        case .aiChatContextualPageContextCollectionUnavailable: return "m_aichat_contextual_page_context_collection_unavailable"
+        case .aiChatContextualQuickActionAskAboutPageSelected: return "m_aichat_contextual_quick_action_ask_about_page_selected"
+        case .aiChatContextualRecentChatsPopupDisplayed: return "m_aichat_contextual_recent_chats_popup_displayed"
+        case .aiChatContextualRecentChatSelected: return "m_aichat_contextual_recent_chat_selected"
+        case .aiChatContextualViewAllChatsTapped: return "m_aichat_contextual_view_all_chats_tapped"
+
+        // MARK: AI Chat Sync
+
+        case .aiChatSyncScopedSyncTokenError: return "m_aichat_sync_internal_scoped-sync-token-error"
+        case .aiChatSyncEncryptionError: return "m_aichat_sync_internal_encryption-error"
+        case .aiChatSyncDecryptionError: return "m_aichat_sync_internal_decryption-error"
+        case .aiChatSyncHistoryEnabledError: return "m_aichat_sync_internal_history_enabled-error"
+        case .aiChatTermsAcceptedDuplicateSyncOff: return "m_aichat_terms_accepted_duplicate_sync_off"
+        case .aiChatTermsAcceptedDuplicateSyncOn: return "m_aichat_terms_accepted_duplicate_sync_on"
+
+        // MARK: Lifecycle
+        case .appDidTransitionToUnexpectedState: return "m_debug_app-did-transition-to-unexpected-state-4"
+        case .sceneWillConnectToWindowCalledInConnectedState: return "m_debug_scene-will-connect-to-window-called-in-connected-state"
+
+        case .debugBreakageExperiment: return "m_debug_breakage_experiment_u"
+
+        // MARK: Malicious Site Protection
+        case .maliciousSiteProtection(let event): return "m_\(event.name)"
+
+        // MARK: Tab switcher improvements
+        case .tabSwitcherEditMenuClicked: return "m_tab_manager_edit_menu_clicked"
+        case .tabSwitcherEditMenuSelectTabs: return "m_tab_manager_edit_menu_select_tabs"
+        case .tabSwitcherEditMenuSelectTabsDaily: return "m_tab_manager_edit_menu_select_tabs_daily"
+        case .tabSwitcherEditMenuCloseAllTabs: return "m_tab_manager_edit_menu_close_all_tabs"
+        case .tabSwitcherEditMenuCloseAllTabsDaily: return "m_tab_manager_edit_menu_close_all_tabs_daily"
+        case .tabSwitcherTabSelected: return "m_tab_manager_tab_selected"
+        case .tabSwitcherTabDeselected: return "m_tab_manager_tab_deselected"
+        case .tabSwitcherSelectAll: return "m_tab_manager_select_all"
+        case .tabSwitcherSelectAllDaily: return "m_tab_manager_select_all_daily"
+        case .tabSwitcherDeselectAll: return "m_tab_manager_deselect_all"
+        case .tabSwitcherDeselectAllDaily: return "m_tab_manager_deselect_all_daily"
+        case .tabSwitcherCloseAll: return "m_tab_manager_close_all"
+        case .tabSwitcherCloseAllDaily: return "m_tab_manager_close_all_daily"
+        case .tabSwitcherConfirmCloseTabs: return "m_tab_manager_confirm_close_tabs"
+        case .tabSwitcherConfirmCloseTabsDaily: return "m_tab_manager_confirm_close_tabs_daily"
+        case .tabSwitcherSelectModeMenuClicked: return "m_tab_manager_select_mode_menu_clicked"
+        case .tabSwitcherSelectModeMenuShareLinks: return "m_tab_manager_select_mode_menu_share_links"
+        case .tabSwitcherSelectModeMenuShareLinksDaily: return "m_tab_manager_select_mode_menu_share_links_daily"
+        case .tabSwitcherSelectModeMenuBookmarkTabs: return "m_tab_manager_select_mode_menu_bookmark_tabs"
+        case .tabSwitcherSelectModeMenuBookmarkTabsDaily: return "m_tab_manager_select_mode_menu_bookmark_tabs_daily"
+        case .tabSwitcherSelectModeMenuBookmarkAllTabs: return "m_tab_manager_select_mode_menu_bookmark_all_tabs"
+        case .tabSwitcherSelectModeMenuBookmarkAllTabsDaily: return "m_tab_manager_select_mode_menu_bookmark_all_tabs_daily"
+        case .tabSwitcherSelectModeMenuCloseOtherTabs: return "m_tab_manager_select_mode_menu_close_other_tabs"
+        case .tabSwitcherSelectModeMenuCloseOtherTabsDaily: return "m_tab_manager_select_mode_menu_close_other_tabs_daily"
+        case .tabSwitcherLongPress: return "m_tab_manager_long_press"
+        case .tabSwitcherLongPressDaily: return "m_tab_manager_long_press_daily"
+        case .tabSwitcherLongPressShare: return "m_tab_manager_long_press_share"
+        case .tabSwitcherLongPressBookmarkTabs: return "m_tab_manager_long_press_bookmark_tabs"
+        case .tabSwitcherLongPressBookmarkTabsDaily: return "m_tab_manager_long_press_bookmark_tabs_daily"
+        case .tabSwitcherLongPressSelectTabs: return "m_tab_manager_long_press_select_tabs"
+        case .tabSwitcherLongPressCloseTab: return "m_tab_manager_long_press_close_tab"
+        case .tabSwitcherLongPressCloseOtherTabs: return "m_tab_manager_long_press_close_other_tabs"
+        case .tabSwitcherLongPressCloseOtherTabsDaily: return "m_tab_manager_long_press_close_other_tabs_daily"
+
+        // MARK: - Duck Player Native pixels
+
+        /// First time Duck Player is opened each day
+        case .duckPlayerNativeDailyUniqueView:
+            return "duckplayer_native_daily-unique-view"
+        /// Duck Player is opened automatically on YouTube
+        case .duckPlayerNativeViewFromYoutubeAutomatic:
+            return "duckplayer_native_view-from_youtube_automatic"
+        /// Duck Player is opened from the YouTube entry point
+        case .duckPlayerNativeViewFromYoutubeEntryPoint:
+            return "duckplayer_native_view-from_youtube_entry-point"
+        /// Duck Player is opened from the YouTube re-entry point
+        case .duckPlayerNativeViewFromYoutubeReEntryPoint:
+            return "duckplayer_native_view-from_youtube_re-entry-point"
+        /// Duck Player is opened from SERP
+        case .duckPlayerNativeViewFromSERP:
+            return "duckplayer_native_view-from_serp"
+        /// Watch on YouTube button is tapped from Duck Player UI
+        case .duckPlayerNativeWatchOnYoutube:
+            return "duckplayer_native_watch-on-youtube"
+        /// Duck Player entry point is shown on YouTube video page
+        case .duckPlayerNativeEntryPointImpression:
+            return "duckplayer_native_entry-point_impression"
+        /// Duck Player entry point is dismissed on YouTube video page
+        case .duckPlayerNativeEntryPointDismissed:
+            return "duckplayer_native_entry-point_dismissed"
+        /// Duck Player re-entry point is shown on YouTube video page
+        case .duckPlayerNativeReEntryPointImpression:
+            return "duckplayer_native_re-entry-point_impression"
+        /// Duck Player re-entry point is dismissed on YouTube video page
+        case .duckPlayerNativeReEntryPointDismissed:
+            return "duckplayer_native_re-entry-point_dismissed"
+        /// Setting for SERP is changed to off
+        case .duckPlayerNativeSettingsSerpOff:
+            return "duckplayer_native_settings_serp_off"
+        /// Setting for SERP is changed to on
+        case .duckPlayerNativeSettingsSerpOn:
+            return "duckplayer_native_settings_serp_on"
+        /// Setting for YouTube is changed to automatic
+        case .duckPlayerNativeSettingsYoutubeAutomatic:
+            return "duckplayer_native_settings_youtube_automatic"
+        /// Setting for YouTube is changed to let me choose
+        case .duckPlayerNativeSettingsYoutubeChoose:
+            return "duckplayer_native_settings_youtube_choose"
+        /// Setting for YouTube is changed to don't show
+        case .duckPlayerNativeSettingsYoutubeDontShow:
+            return "duckplayer_native_settings_youtube_dont-show"
+        /// Priming modal is shown
+        case .duckPlayerNativePrimingModalImpression:
+            return "duckplayer_native_priming-modal_impression"
+        /// Priming modal is dismissed
+        case .duckPlayerNativePrimingModalDismissed:
+            return "duckplayer_native_priming-modal_dismissed"
+        /// Priming modal CTA is tapped
+        case .duckPlayerNativePrimingModalCTA:
+            return "duckplayer_native_priming-modal_cta"
+        /// Settings gear icon is tapped from Duck Player UI
+        case .duckPlayerNativeDuckPlayerSettingsOpened:
+            return "duckplayer_native_duckplayer_settings_opened"
+
+        // MARK: System Settings PiP Video Tutorial
+        case .systemSettingsPiPTutorialFailedToLoadVideo: return "m_picture-in-picture-tutorial_failed-to-load-video"
+
+        case .appDidTerminateWithUnhandledError: return "m_app-did-terminate-with-unhandled-error"
+
+        // MARK: UserScript
+        case .userScriptLoadJSFailed: return "m_debug_user_script_load_js_failed"
+
+        // MARK: Push Notification
+        case .inactiveUserProvisionalPushNotificationTapped: return "m_push-notification_local-provisional_inactive-user-tap"
+        case .userNotificationAuthorizationStatusDaily: return "m_push-notification_user-notification-authorization-status"
+
+        // MARK: Data Broker Protection Notifications
+        case .dbpNotificationOpenedFirstScanComplete: return "m_dbp_notification_opened_first_scan_complete"
+        case .dbpNotificationOpenedFirstFreemiumScanComplete: return "m_dbp_freemium_notification_opened_first_scan_complete"
+        case .dbpNotificationOpenedFirstRemoval: return "m_dbp_notification_opened_first_removal"
+        case .dbpNotificationOpenedAllRecordsRemoved: return "m_dbp_notification_opened_all_records_removed"
+        case .dbpNotificationOpened1WeekCheckIn: return "m_dbp_notification_opened_1_week_check_in"
+        case .dbpNotificationOpenedGoToMarketFirstScan: return "m_dbp_notification_opened_go_to_market_first_scan"
+
+        // MARK: App Intent
+        case .appIntentPerformed: return "m_app-intent_intent-performed"
+
+        case .failedToRemoveTmpDir: return "m_debug_failed-to-remove-tmp-dir"
+        case .recreateTmpAttemptFailed(let attempt): return "m_debug_recreate-tmp-attempt-failed-\(attempt)"
+        case .recreateTmpSuccessOnRetry(let attempt): return "m_debug_recreate-tmp-success-on-retry-\(attempt)"
+        case .recreateTmpWebViewFallbackSucceeded: return "m_debug_recreate-tmp-webview-fallback-succeeded"
+        case .recreateTmpWebViewFallbackFailed: return "m_debug_recreate-tmp-webview-fallback-failed"
+        case .contentBlockingCompilationFailedMissingTmpDir: return "m_debug_content-blocking-compilation-failed-missing-tmp-dir"
+        case .tmpDirStillMissingAfterRecreation: return "m_debug_tmp-dir-still-missing-after-recreation"
+
+        // MARK: Customization
+        case .customizationAddressBarStarted: return "m_customization_addressbar_started"
+        case .customizationAddressBarSelected: return "m_customization_addressbar_selected"
+        case .customizationToolbarStarted: return "m_customization_toolbar_started"
+        case .customizationToolbarSelected: return "m_customization_toolbar_selected"
+
+        // MARK: - Dax Easter Egg
+        case .daxEasterEggLogoDisplayed: return "m_dax_easter_egg_logo_displayed"
+        case .daxEasterEggLogoTapped: return "m_dax_easter_egg_logo_tapped"
+        case .daxEasterEggLogoSetAsPermanent: return "m_dax_easter_egg_logo_set_as_permanent"
+        case .daxEasterEggLogoResetToDefault: return "m_dax_easter_egg_logo_reset_to_default"
+
+        // MARK: - Product surface telemetery
+        case .productTelemeterySurfaceUsageMenu: return "m_product_telemetry_surface_usage_menu"
+        case .productTelemeterySurfaceUsageDAU: return "m_product_telemetry_surface_usage_dau"
+        case .productTelemeterySurfaceUsageIPad: return "m_product_telemetry_surface_usage_ipad"
+        case .productTelemeterySurfaceUsageLandscapeMode: return "m_product_telemetry_surface_usage_landscape"
+        case .productTelemeterySurfaceUsageKeyboardActive: return "m_product_telemetry_surface_usage_keyboard_active"
+        case .productTelemeterySurfaceUsageAutocomplete: return "m_product_telemetry_surface_usage_autocomplete"
+        case .productTelemeterySurfaceUsageSERP: return "m_product_telemetry_surface_usage_serp"
+        case .productTelemeterySurfaceUsageWebsite: return "m_product_telemetry_surface_usage_website"
+        case .productTelemeterySurfaceUsageDuckAI: return "m_product_telemetry_surface_usage_duck_ai"
+        case .productTelemeterySurfaceUsageTabManager: return "m_product_telemetry_surface_usage_tab_manager"
+        case .productTelemeterySurfaceUsageDataClearing: return "m_product_telemetry_surface_usage_data_clearing"
+        case .productTelemeterySurfaceUsageNewTabPage: return "m_product_telemetry_surface_usage_new_tab_page"
+        case .productTelemeterySurfaceUsageSettings: return "m_product_telemetry_surface_usage_settings"
+        case .productTelemeterySurfaceUsageBookmarksPage: return "m_product_telemetry_surface_usage_bookmarks_page"
+        case .productTelemeterySurfaceUsagePasswordsPage: return "m_product_telemetry_surface_usage_passwords_page"
+
+        // MARK: - Web Extensions
+        case .webExtensionInstalled: return "m_web_extension_installed"
+        case .webExtensionInstallError: return "m_web_extension_install_error"
+        case .webExtensionUninstalled: return "m_web_extension_uninstalled"
+        case .webExtensionUninstallError: return "m_web_extension_uninstall_error"
+        case .webExtensionUninstalledAll: return "m_web_extension_uninstalled_all"
+        case .webExtensionUninstallAllError: return "m_web_extension_uninstall_all_error"
+        case .webExtensionLoaded: return "m_web_extension_loaded"
+        case .webExtensionLoadError: return "m_web_extension_load_error"
+        case .webExtensionEmbeddedInstalled: return "m_web_extension_embedded_installed"
+        case .webExtensionEmbeddedUpgraded: return "m_web_extension_embedded_upgraded"
+        case .webExtensionEmbeddedInstallError: return "m_web_extension_embedded_install_error"
+
+        case .webExtensionDarkReaderInstalled: return "m_web_extension_dark_reader_installed"
+        case .webExtensionDarkReaderUpgraded: return "m_web_extension_dark_reader_upgraded"
+        case .webExtensionDarkReaderInstallError: return "m_web_extension_dark_reader_install_error"
+        case .webExtensionDarkReaderEnabled: return "m_web_extension_dark_reader_enabled"
+        case .webExtensionDarkReaderDisabled: return "m_web_extension_dark_reader_disabled"
+
+        case .webExtensionAdBlockingInstalled: return "m_web_extension_ad_blocking_installed"
+        case .webExtensionAdBlockingUpgraded: return "m_web_extension_ad_blocking_upgraded"
+        case .webExtensionAdBlockingInstallError: return "m_web_extension_ad_blocking_install_error"
+
+        case .webExtensionScriptletFetchSuccess: return "m_web_extension_scriptlet_fetch_success"
+        case .webExtensionScriptletFetchError: return "m_web_extension_scriptlet_fetch_error"
+        case .webExtensionScriptletValidationError: return "m_web_extension_scriptlet_validation_error"
+        case .webExtensionScriptletInstalled: return "m_web_extension_scriptlet_installed"
+        case .webExtensionScriptletInstallError: return "m_web_extension_scriptlet_install_error"
+
+        case .webExtensionDailyAdBlockingState: return "m_web_extension_daily_ad_blocking_state"
+        case .webExtensionAdBlockingSettingsOpen: return "m_web_extension_ad_blocking_settings_open"
+        case .webExtensionAdBlockingEnabled: return "m_web_extension_ad_blocking_enabled"
+        case .webExtensionAdBlockingDisabled: return "m_web_extension_ad_blocking_disabled"
+
+        // MARK: - Fire Mode
+        case .fireModeNTPPromotionShown: return "m_fire-mode_ntp-promotion_shown"
+        case .fireModeNTPPromotionDismissed: return "m_fire-mode_ntp-promotion_dismissed"
+        case .fireModeNTPPromotionEngaged: return "m_fire-mode_ntp-promotion_engaged"
+        case .fireModeMenuPromotionShown: return "m_fire-mode_menu-promotion_shown"
+        case .fireModeMenuPromotionEngaged: return "m_fire-mode_menu-promotion_engaged"
+        case .browsingModeSwitched: return "m_browsing-mode_switched"
+        case .tabSwitcherModeToggled: return "m_tab-switcher_mode-toggled"
+        case .fireModeBurnExecuted: return "m_fire-mode_burn_executed"
+        case .normalModeBurnExecuted: return "m_normal-mode_burn_executed"
+        case .fireModeDataCleared: return "m_fire-mode_data-cleared"
+        case .normalModeDataCleared: return "m_normal-mode_data-cleared"
+        case .fireModeLastTabClosedBurn: return "m_fire-mode_last-tab-closed_burn"
+        case .fireModeEmptyStateNewTab: return "m_fire-mode_empty-state_new-tab"
+        case .linkLongPressMenuShown: return "m_link-long-press_menu-shown"
+        case .linkLongPressNewTab: return "m_link-long-press_new-tab"
+        case .linkLongPressBackgroundTab: return "m_link-long-press_background-tab"
+        case .linkLongPressFireTab: return "m_link-long-press_fire-tab"
+
+        }
+    }
+}
+
+extension Pixel.Event {
+
+    public enum BucketAggregation: String, CustomStringConvertible {
+
+        public var description: String { rawValue }
+        
+        case zero = "0"
+        case lessThan01 = "0.1"
+        case lessThan05 = "0.5"
+        case lessThan1 = "1"
+        case lessThan5 = "5"
+        case lessThan10 = "10"
+        case lessThan20 = "20"
+        case lessThan40 = "40"
+        case more
+        
+        public init(number: Double) {
+            switch number {
+            case 0:
+                self = .zero
+            case ...0.1:
+                self = .lessThan01
+            case ...0.5:
+                self = .lessThan05
+            case ...1:
+                self = .lessThan1
+            case ...5:
+                self = .lessThan5
+            case ...10:
+                self = .lessThan10
+            case ...20:
+                self = .lessThan20
+            case ...40:
+                self = .lessThan40
+            default:
+                self = .more
+            }
+        }
+        
+    }
+    
+    public enum CompileRulesResult: String, CustomStringConvertible {
+        
+        public var description: String { rawValue }
+        
+        case tabClosed = "tab_closed"
+        case appQuit = "app_quit"
+        case appBackgrounded = "app_backgrounded"
+        case success
+        
+    }
+    
+    public enum AppState: String, CustomStringConvertible {
+        
+        public var description: String { rawValue }
+        
+        case onboarding
+        case regular
+        
+    }
+    
+    public enum CompileRulesListType: String, CustomStringConvertible {
+        
+        public var description: String { rawValue }
+        
+        case tds
+        case blockingAttribution
+        case attributed
+        case unknown
+
+    }
+
+    public enum CompileTimeBucketAggregation: String, CustomStringConvertible {
+
+        public var description: String { rawValue }
+     
+        case lessThan1 = "1"
+        case lessThan2 = "2"
+        case lessThan3 = "3"
+        case lessThan4 = "4"
+        case lessThan5 = "5"
+        case lessThan6 = "6"
+        case lessThan7 = "7"
+        case lessThan8 = "8"
+        case lessThan9 = "9"
+        case lessThan10 = "10"
+        case more
+
+        public init(number: Double) {
+            switch number {
+            case ...1:
+                self = .lessThan1
+            case ...2:
+                self = .lessThan2
+            case ...3:
+                self = .lessThan3
+            case ...4:
+                self = .lessThan4
+            case ...5:
+                self = .lessThan5
+            case ...6:
+                self = .lessThan6
+            case ...7:
+                self = .lessThan7
+            case ...8:
+                self = .lessThan8
+            case ...9:
+                self = .lessThan9
+            case ...10:
+                self = .lessThan10
+            default:
+                self = .more
+            }
+        }
+    }
+}
+
+// This is a temporary mapper from PixelKit to Pixel events for MaliciousSiteProtection
+// Malicious Site Protection BSK library depends on PixelKit which is not ready yet to be ported to iOS.
+// The below code maps between `PixelKitEvent` to `Pixel.Event` in order to use `Pixel.fire` on the client.
+public extension Pixel.Event {
+
+    enum MaliciousSiteProtectionEvent: Equatable {
+        case errorPageShown(category: ThreatKind, clientSideHit: Bool?)
+        case visitSite(category: ThreatKind)
+        case iframeLoaded(category: ThreatKind)
+        case settingToggled(to: Bool)
+        case matchesApiTimeout
+        case failedToDownloadInitialDataSets(category: ThreatKind, type: DataManager.StoredDataType.Kind)
+        case singleDataSetUpdatePerformance(MaliciousSiteProtection.SingleDataSetUpdatePerformanceInfo)
+        case singleDataSetUpdateDiskUsage(MaliciousSiteProtection.SingleDataSetUpdateDiskUsageInfo)
+        case aggregateDataSetUpdatePerformance(MaliciousSiteProtection.AggregateDataSetPerformanceInfo)
+        case aggregateDataSetUpdateDiskUsage(MaliciousSiteProtection.AggregateDataSetUpdateDiskUsageInfo)
+
+        public init?(_ pixelKitEvent: MaliciousSiteProtection.Event) {
+            switch pixelKitEvent {
+            case .errorPageShown(category: let category, clientSideHit: let clientSideHit):
+                self = .errorPageShown(category: category, clientSideHit: clientSideHit)
+            case .visitSite(category: let category):
+                self = .visitSite(category: category)
+            case .iframeLoaded(category: let category):
+                self = .iframeLoaded(category: category)
+            case .settingToggled(let enabled):
+                self = .settingToggled(to: enabled)
+            case .matchesApiTimeout:
+                self = .matchesApiTimeout
+            case .matchesApiFailure:
+                return nil
+            case .failedToDownloadInitialDataSets(category: let category, type: let type):
+                self = .failedToDownloadInitialDataSets(category: category, type: type)
+            case .singleDataSetUpdatePerformance(let dataSetUpdateInfo):
+                self = .singleDataSetUpdatePerformance(dataSetUpdateInfo)
+            case .singleDataSetUpdateDiskUsage(let dataSetUpdateInfo):
+                self = .singleDataSetUpdateDiskUsage(dataSetUpdateInfo)
+            case .aggregateDataSetUpdatePerformance(let aggregateDataSetsUpdateInfo):
+                self = .aggregateDataSetUpdatePerformance(aggregateDataSetsUpdateInfo)
+            case .aggregateDataSetUpdateDiskUsage(let aggregateDataSetsUpdateInfo):
+                self = .aggregateDataSetUpdateDiskUsage(aggregateDataSetsUpdateInfo)
+            }
+        }
+
+        private var event: PixelKitEvent {
+            switch self {
+            case .errorPageShown(let category, let clientSideHit):
+                return MaliciousSiteProtection.Event.errorPageShown(category: category, clientSideHit: clientSideHit)
+            case .visitSite(let category):
+                return MaliciousSiteProtection.Event.visitSite(category: category)
+            case .iframeLoaded(let category):
+                return MaliciousSiteProtection.Event.iframeLoaded(category: category)
+            case .settingToggled(let enabled):
+                return MaliciousSiteProtection.Event.settingToggled(to: enabled)
+            case .matchesApiTimeout:
+                return MaliciousSiteProtection.Event.matchesApiTimeout
+            case .failedToDownloadInitialDataSets(let category, let type):
+                return MaliciousSiteProtection.Event.failedToDownloadInitialDataSets(category: category, type: type)
+            case .singleDataSetUpdatePerformance(let info):
+                return MaliciousSiteProtection.Event.singleDataSetUpdatePerformance(info)
+            case .singleDataSetUpdateDiskUsage(let info):
+                return MaliciousSiteProtection.Event.singleDataSetUpdateDiskUsage(info)
+            case .aggregateDataSetUpdatePerformance(let info):
+                return MaliciousSiteProtection.Event.aggregateDataSetUpdatePerformance(info)
+            case .aggregateDataSetUpdateDiskUsage(let info):
+                return MaliciousSiteProtection.Event.aggregateDataSetUpdateDiskUsage(info)
+            }
+        }
+
+        var name: String {
+            switch self {
+            case .failedToDownloadInitialDataSets, .singleDataSetUpdatePerformance, .singleDataSetUpdateDiskUsage, .aggregateDataSetUpdatePerformance, .aggregateDataSetUpdateDiskUsage:
+                return "debug_\(event.name)"
+            default:
+                return event.name
+            }
+        }
+
+        public var parameters: [String: String] {
+            event.parameters ?? [:]
+        }
+    }
+}

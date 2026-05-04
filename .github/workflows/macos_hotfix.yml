@@ -1,0 +1,65 @@
+name: macOS - Set Up Hotfix Release Branch
+
+defaults:
+  run:
+    working-directory: macOS
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }}'
+  cancel-in-progress: false
+
+jobs:
+
+  create_release_branch:
+
+    name: Create Release Branch
+
+    runs-on: macos-26-xlarge
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Check out the code
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GHA_ELEVATED_PERMISSIONS_TOKEN }}
+          submodules: recursive
+          fetch-depth: 0 # Fetch all history and tags in order to extract Asana task URLs from git log
+
+      - name: Assert main branch
+        run: |
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            echo "👎 Not the main branch"
+            exit 1
+          fi
+
+      - name: Setup Ruby and dependencies
+        uses: ./.github/actions/setup-ruby
+        with:
+          working-directory: macOS
+          cache-key-prefix: macos-ruby
+
+      - name: Make release branch
+        id: make_release_branch
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER }}
+          DBP_API_AUTH_TOKEN: ${{ secrets.DBP_API_AUTH_TOKEN }}
+          # Elevated permissions token is needed here to use GH git/refs API (used by fastlane)
+          GITHUB_TOKEN: ${{ secrets.GHA_ELEVATED_PERMISSIONS_TOKEN }}
+        run: |
+          bundle exec fastlane run start_new_release \
+            platform:"macos" \
+            github_handle:"${{ github.actor }}" \
+            is_hotfix:"true"
+
+      # Necessary as make_release_branch will checkout a hotfix branch and the plugins may be different
+      - name: Setup Ruby and dependencies (after branch checkout)
+        uses: ./.github/actions/setup-ruby
+        with:
+          working-directory: macOS
+          cache-key-prefix: macos-ruby

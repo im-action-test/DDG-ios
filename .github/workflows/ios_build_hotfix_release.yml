@@ -1,0 +1,95 @@
+name: iOS - Build Hotfix Release
+
+defaults:
+  run:
+    working-directory: iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      asana-task-url:
+        description: "Asana release task URL"
+        required: true
+        type: string
+      base-branch:
+        description: "Base branch (defaults to main, only override for testing)"
+        required: false
+        type: string
+      current-internal-release-branch:
+        description: "Current internal release branch (to merge hotfix branch to - hotfix branch is merged to main if this is not provided)"
+        required: false
+        type: string
+
+concurrency:
+  group: 'ios-release' # prevent running this and regular release workflows at the same time
+  cancel-in-progress: false
+
+jobs:
+
+  assert_release_branch:
+
+    name: Assert Hotfix Branch
+
+    runs-on: macos-26
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Assert hotfix release branch
+        run: |
+          case "${{ github.ref }}" in
+            refs/heads/hotfix/*) ;;
+            *) echo "👎 Not a hotfix release branch"; exit 1 ;;
+          esac
+
+      - name: Setup Ruby and dependencies
+        uses: ./.github/actions/setup-ruby
+        with:
+          working-directory: iOS
+          cache-key-prefix: ios-ruby
+
+  run_tests:
+
+    name: Run Tests
+
+    needs: assert_release_branch
+    uses: ./.github/workflows/ios_pr_checks.yml
+    with:
+      skip-release: true
+    secrets: inherit
+
+  prepare_release:
+    name: Prepare Release
+    needs: [ run_tests ]
+    uses: ./.github/workflows/ios_release.yml
+    with:
+      asana-task-url: ${{ github.event.inputs.asana-task-url }}
+      destination: appstore
+    secrets: inherit
+
+  tag_and_merge:
+    name: Tag and Merge Branch
+    needs: [ prepare_release ]
+    uses: ./.github/workflows/ios_tag_release_update_asana.yml
+    with:
+      asana-task-url: ${{ github.event.inputs.asana-task-url }}
+      branch: ${{ github.ref_name }}
+      base-branch: ${{ github.event.inputs.current-internal-release-branch || 'main' }}
+      release-type: internal # Pre-release for now, after submitting to app store we will run ios-tag-release-update-asana again manually with 'hotfix' release type to finish up
+    secrets: inherit
+
+  report_failure:
+    name: Report Failure
+    needs: [ assert_release_branch, run_tests, prepare_release, tag_and_merge ]
+    if: always() && (needs.run_tests.result == 'failure' || needs.prepare_release.result == 'failure' || needs.tag_and_merge.result == 'failure')
+    uses: ./.github/workflows/report_failed_release_workflow.yml
+    with:
+      asana-task-id: ${{ needs.assert_release_branch.outputs.asana_task_id }}
+      branch: ${{ github.ref_name }}
+      platform: ios
+      workflow-name: "build hotfix release"
+    secrets: inherit

@@ -1,0 +1,99 @@
+//
+//  SubscriptionSettingsHeaderView.swift
+//  DuckDuckGo
+//
+//  Copyright © 2024 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import SwiftUI
+
+struct SubscriptionSettingsHeaderView: View {
+
+    enum HeaderState: Equatable {
+        case subscribed
+        case expired(_ details: String)
+        case activating
+        case trial
+    }
+
+    let state: HeaderState
+    let tierBadge: TierBadgeView.Variant?
+
+    init(state: HeaderState, tierBadge: TierBadgeView.Variant? = nil) {
+        self.state = state
+        self.tierBadge = tierBadge
+    }
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 8) {
+            switch state {
+            case .expired:
+                Image(.privacyProHeaderAlert)
+            default:
+                Image(.privacyProHeader)
+            }
+            Text(UserText.subscriptionTitle)
+                .daxTitle2()
+                .foregroundColor(Color(designSystemColor: .textPrimary))
+
+            switch state {
+            case .subscribed, .trial:
+                HStack(alignment: .lastTextBaseline, spacing: 6) {
+                    HStack(alignment: .center, spacing: 4) {
+                        Circle()
+                            .fill(Color(designSystemColor: .alertGreen))
+                            .frame(width: 8, height: 8)
+                        Text(state == .subscribed ? UserText.subscriptionSubscribed : UserText.trialSubscription)
+                            .daxBodyRegular()
+                            .foregroundColor(Color(designSystemColor: .textSecondary))
+                    }
+                    if let variant = tierBadge {
+                        Rectangle()
+                            .fill(Color(designSystemColor: .lines))
+                            .frame(width: 1, height: 12)
+                        TierBadgeView(variant: variant)
+                    }
+                }
+            case .expired(let details):
+                Text(details)
+                    .daxBodyRegular()
+                    .foregroundColor(Color(designSystemColor: .textSecondary))
+            case .activating:
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color(designSystemColor: .alertYellow))
+                        .frame(width: 8, height: 8)
+                    Text(UserText.settingsPProActivating)
+                        .daxBodyRegular()
+                        .foregroundColor(Color(designSystemColor: .textSecondary))
+                }
+                Text(UserText.settingsPProActivationPendingDescription)
+                    .daxBodyRegular()
+                    .foregroundColor(Color(designSystemColor: .textSecondary))
+                    .padding(.top, 9)
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
+}
+
+#Preview {
+    VStack(spacing: 8) {
+        SubscriptionSettingsHeaderView(state: .subscribed, tierBadge: .plus)
+        SubscriptionSettingsHeaderView(state: .subscribed, tierBadge: .pro)
+        SubscriptionSettingsHeaderView(state: .expired("Your subscription expired on April 20, 2027"))
+        SubscriptionSettingsHeaderView(state: .activating)
+    }
+}

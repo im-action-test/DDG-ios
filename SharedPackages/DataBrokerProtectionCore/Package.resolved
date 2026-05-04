@@ -1,0 +1,122 @@
+{
+  "pins" : [
+    {
+      "identity" : "content-scope-scripts",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/duckduckgo/content-scope-scripts.git",
+      "state" : {
+        "revision" : "13976e04d81eefac5a9c718d886ce99460a9123b",
+        "version" : "13.29.0"
+      }
+    },
+    {
+      "identity" : "duckduckgo-autofill",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/duckduckgo/duckduckgo-autofill.git",
+      "state" : {
+        "revision" : "c8ce2e7cdcca4226c96350dcd49323298b941592",
+        "version" : "19.0.0"
+      }
+    },
+    {
+      "identity" : "gzipswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/1024jp/GzipSwift.git",
+      "state" : {
+        "revision" : "731037f6cc2be2ec01562f6597c1d0aa3fe6fd05",
+        "version" : "6.0.1"
+      }
+    },
+    {
+      "identity" : "jwt-kit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vapor/jwt-kit.git",
+      "state" : {
+        "revision" : "13e7513b3ba0afa13967daf77af2fb4ad087306c",
+        "version" : "4.13.5"
+      }
+    },
+    {
+      "identity" : "privacy-dashboard",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/duckduckgo/privacy-dashboard",
+      "state" : {
+        "revision" : "a3adc679f86a3276dfb12ddf4a379b17c80dfc60",
+        "version" : "9.10.0"
+      }
+    },
+    {
+      "identity" : "punycodeswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gumob/PunycodeSwift.git",
+      "state" : {
+        "revision" : "30a462bdb4398ea835a3585472229e0d74b36ba5",
+        "version" : "3.0.0"
+      }
+    },
+    {
+      "identity" : "swift-algorithms",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-algorithms",
+      "state" : {
+        "revision" : "87e50f483c54e6efd60e885f7f5aa946cee68023",
+        "version" : "1.2.1"
+      }
+    },
+    {
+      "identity" : "swift-asn1",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-asn1.git",
+      "state" : {
+        "revision" : "a54383ada6cecde007d374f58f864e29370ba5c3",
+        "version" : "1.3.2"
+      }
+    },
+    {
+      "identity" : "swift-crypto",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-crypto.git",
+      "state" : {
+        "revision" : "e8d6eba1fef23ae5b359c46b03f7d94be2f41fed",
+        "version" : "3.12.3"
+      }
+    },
+    {
+      "identity" : "swift-numerics",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-numerics.git",
+      "state" : {
+        "revision" : "e0ec0f5f3af6f3e4d5e7a19d2af26b481acb6ba8",
+        "version" : "1.0.3"
+      }
+    },
+    {
+      "identity" : "sync_crypto",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/duckduckgo/sync_crypto",
+      "state" : {
+        "revision" : "8dfdea29e325c6611d9b2b556e1d380252d54ba6",
+        "version" : "0.7.0"
+      }
+    },
+    {
+      "identity" : "trackerradarkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/duckduckgo/TrackerRadarKit.git",
+      "state" : {
+        "revision" : "6d2db2a50cbd6d0a33d40864953bbef523489b28",
+        "version" : "3.1.0"
+      }
+    },
+    {
+      "identity" : "zipfoundation",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/weichsel/ZIPFoundation.git",
+      "state" : {
+        "revision" : "22787ffb59de99e5dc1fbfe80b19c97a904ad48d",
+        "version" : "0.9.20"
+      }
+    }
+  ],
+  "version" : 2
+}

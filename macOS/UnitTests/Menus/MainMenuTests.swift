@@ -1,0 +1,772 @@
+//
+//  MainMenuTests.swift
+//
+//  Copyright © 2022 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import AIChat
+import Combine
+import PrivacyConfig
+import PrivacyConfigTestsUtils
+import SharedTestUtilities
+import SubscriptionTestingUtilities
+import XCTest
+
+@testable import Configuration
+@testable import DuckDuckGo_Privacy_Browser
+
+class MainMenuTests: XCTestCase {
+
+    typealias ReopenMenuItemKeyEquivalentManager = HistoryMenu.ReopenMenuItemKeyEquivalentManager
+
+    @Published var isInInitialState = true
+
+    var lastSessionMenuItem: NSMenuItem!
+    var lastTabMenuItem: NSMenuItem!
+    var manager: ReopenMenuItemKeyEquivalentManager!
+    var appearancePreferences: AppearancePreferences!
+
+    override func setUp() {
+        isInInitialState = true
+        lastSessionMenuItem = NSMenuItem()
+        lastTabMenuItem = NSMenuItem()
+        appearancePreferences = AppearancePreferences(
+            persistor: MockAppearancePreferencesPersistor(),
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            featureFlagger: MockFeatureFlagger(),
+            aiChatMenuConfig: MockAIChatConfig()
+        )
+    }
+
+    override func tearDown() {
+        appearancePreferences = nil
+        lastSessionMenuItem = nil
+        lastTabMenuItem = nil
+        manager = nil
+    }
+
+    func testWhenIsInInitialState_AndCanRestoreState_ThenLastSessionMenuItemHasShortcut() {
+        manager = .init(isInInitialStatePublisher: $isInInitialState, canRestoreLastSessionState: true)
+        manager.lastSessionMenuItem = lastSessionMenuItem
+        manager.reopenLastClosedMenuItem = lastTabMenuItem
+
+        isInInitialState = true
+
+        XCTAssertEqual(manager.lastSessionMenuItem?.keyEquivalent, ReopenMenuItemKeyEquivalentManager.Const.keyEquivalent)
+        XCTAssertEqual(manager.lastSessionMenuItem?.keyEquivalentModifierMask, ReopenMenuItemKeyEquivalentManager.Const.modifierMask)
+        XCTAssertEqual(manager.reopenLastClosedMenuItem?.keyEquivalent, "")
+        XCTAssertEqual(manager.reopenLastClosedMenuItem?.keyEquivalentModifierMask, .command)
+    }
+
+    func testWhenIsInInitialState_AndCannotRestoreState_ThenLastTabMenuItemHasShortcut() {
+        manager = .init(isInInitialStatePublisher: $isInInitialState, canRestoreLastSessionState: false)
+        manager.lastSessionMenuItem = lastSessionMenuItem
+        manager.reopenLastClosedMenuItem = lastTabMenuItem
+
+        isInInitialState = true
+
+        XCTAssertEqual(manager.lastSessionMenuItem?.keyEquivalent, "")
+        XCTAssertEqual(manager.lastSessionMenuItem?.keyEquivalentModifierMask, .command)
+        XCTAssertEqual(manager.reopenLastClosedMenuItem?.keyEquivalent, ReopenMenuItemKeyEquivalentManager.Const.keyEquivalent)
+        XCTAssertEqual(manager.reopenLastClosedMenuItem?.keyEquivalentModifierMask, ReopenMenuItemKeyEquivalentManager.Const.modifierMask)
+    }
+
+    func testWhenIsNotInInitialState_AndCanRestoreState_ThenLastTabMenuItemHasShortcut() {
+        manager = .init(isInInitialStatePublisher: $isInInitialState, canRestoreLastSessionState: true)
+        manager.lastSessionMenuItem = lastSessionMenuItem
+        manager.reopenLastClosedMenuItem = lastTabMenuItem
+
+        isInInitialState = false
+
+        XCTAssertEqual(manager.lastSessionMenuItem?.keyEquivalent, "")
+        XCTAssertEqual(manager.lastSessionMenuItem?.keyEquivalentModifierMask, .command)
+        XCTAssertEqual(manager.reopenLastClosedMenuItem?.keyEquivalent, ReopenMenuItemKeyEquivalentManager.Const.keyEquivalent)
+        XCTAssertEqual(manager.reopenLastClosedMenuItem?.keyEquivalentModifierMask, ReopenMenuItemKeyEquivalentManager.Const.modifierMask)
+    }
+
+    func testWhenIsNotInInitialState_AndCannotRestoreState_ThenLastTabMenuItemHasShortcut() {
+        manager = .init(isInInitialStatePublisher: $isInInitialState, canRestoreLastSessionState: false)
+        manager.lastSessionMenuItem = lastSessionMenuItem
+        manager.reopenLastClosedMenuItem = lastTabMenuItem
+
+        isInInitialState = false
+
+        XCTAssertEqual(manager.lastSessionMenuItem?.keyEquivalent, "")
+        XCTAssertEqual(manager.lastSessionMenuItem?.keyEquivalentModifierMask, .command)
+        XCTAssertEqual(manager.reopenLastClosedMenuItem?.keyEquivalent, ReopenMenuItemKeyEquivalentManager.Const.keyEquivalent)
+        XCTAssertEqual(manager.reopenLastClosedMenuItem?.keyEquivalentModifierMask, ReopenMenuItemKeyEquivalentManager.Const.modifierMask)
+    }
+
+    // MARK: - Add To Dock Action
+
+    @MainActor
+    func testWhenBrowserIsAddedToDockThenMenuItemIsHidden() throws {
+        let dockCustomizer = DockCustomizerMock()
+        dockCustomizer.addToDock()
+
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: dockCustomizer,
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        sut.update()
+
+        let duckDuckGoMenu = try XCTUnwrap(sut.items.first?.submenu)
+
+        XCTAssertEqual(duckDuckGoMenu.items[3].title, UserText.addDuckDuckGoToDock)
+        XCTAssertTrue(duckDuckGoMenu.items[3].isHidden)
+    }
+
+    @MainActor
+    func testWhenBrowserIsNotInTheDockThenMenuItemIsVisible() throws {
+        let dockCustomizer = DockCustomizerMock()
+
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: dockCustomizer,
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        sut.update()
+
+        let duckDuckGoMenu = try XCTUnwrap(sut.items.first?.submenu)
+
+        XCTAssertEqual(duckDuckGoMenu.items[3].isHidden, false)
+        XCTAssertEqual(duckDuckGoMenu.items[3].title, UserText.addDuckDuckGoToDock)
+    }
+
+    @MainActor
+    func testWhenAddingToDockIsNotSupportedThenMenuItemIsHidden() throws {
+        let dockCustomizer = DockCustomizerMock()
+        dockCustomizer.supportsAddingToDock = false
+        dockCustomizer.dockStatus = false
+
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: dockCustomizer,
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        sut.update()
+
+        let duckDuckGoMenu = try XCTUnwrap(sut.items.first?.submenu)
+
+        XCTAssertEqual(duckDuckGoMenu.items[3].title, UserText.addDuckDuckGoToDock)
+        XCTAssertTrue(duckDuckGoMenu.items[3].isHidden)
+    }
+
+    @MainActor
+    func testWhenBrowserIsInTheDockThenMenuItemIsNotVisible() throws {
+        let dockCustomizer = DockCustomizerMock()
+        dockCustomizer.dockStatus = true
+
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: dockCustomizer,
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        sut.update()
+
+        let duckDuckGoMenu = try XCTUnwrap(sut.items.first?.submenu)
+
+        XCTAssertEqual(duckDuckGoMenu.items[3].isHidden, true)
+        XCTAssertEqual(duckDuckGoMenu.items[3].title, UserText.addDuckDuckGoToDock)
+    }
+
+    // MARK: - Default Browser Action
+
+    @MainActor
+    func testWhenBrowserIsDefaultThenSetAsDefaultBrowserMenuItemIsHidden() throws {
+        let defaultBrowserProvider = DefaultBrowserProviderMock()
+        defaultBrowserProvider.isDefault = true
+
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: DockCustomizerMock(),
+            defaultBrowserPreferences: .init(defaultBrowserProvider: defaultBrowserProvider),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        sut.update()
+
+        let duckDuckGoMenu = try XCTUnwrap(sut.items.first?.submenu)
+
+        XCTAssertEqual(duckDuckGoMenu.items[4].title, UserText.setAsDefaultBrowser + "…")
+        XCTAssertTrue(duckDuckGoMenu.items[4].isHidden)
+    }
+
+    @MainActor
+    func testWhenBrowserIsNotDefaultThenSetAsDefaultBrowserMenuItemIsShown() throws {
+        let defaultBrowserProvider = DefaultBrowserProviderMock()
+        defaultBrowserProvider.isDefault = false
+
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: DockCustomizerMock(),
+            defaultBrowserPreferences: .init(defaultBrowserProvider: defaultBrowserProvider),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        sut.update()
+
+        let duckDuckGoMenu = try XCTUnwrap(sut.items.first?.submenu)
+
+        XCTAssertEqual(duckDuckGoMenu.items[4].title, UserText.setAsDefaultBrowser + "…")
+        XCTAssertFalse(duckDuckGoMenu.items[4].isHidden)
+    }
+
+    // MARK: - Bookmarks
+
+    @MainActor
+    func testWhenBookmarksMenuIsInitialized_ThenSecondItemIsBookmarkAllTabs() throws {
+        // GIVEN
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: DockCustomizerMock(),
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+        let bookmarksMenu = try XCTUnwrap(sut.item(withTitle: UserText.bookmarks))
+
+        // WHEN
+        let result = try XCTUnwrap(bookmarksMenu.submenu?.item(withTitle: UserText.bookmarkAllTabs))
+
+        // THEN
+        XCTAssertEqual(result.keyEquivalent, "d")
+        XCTAssertEqual(result.keyEquivalentModifierMask, [.command, .shift])
+    }
+
+    // MARK: - AI Chat
+
+    @MainActor
+    func testDuckAIMenuIsHidden_whenShouldDisplayApplicationMenuShortcutIsFalse() throws {
+        // GIVEN
+        let aiChatConfig = DummyAIChatConfig()
+        let sut = makeMainMenu(aiChatConfig: aiChatConfig)
+
+        // WHEN
+        let aiChatMenu = sut.item(withTitle: "Duck.ai")
+
+        // THEN
+        XCTAssertNotNil(aiChatMenu, "Duck.ai menu item should exist in the menu bar.")
+        XCTAssertTrue(aiChatMenu?.isHidden == true, "Duck.ai menu item should be hidden when the AI chat flag is false.")
+    }
+
+    @MainActor private func makeMainMenu(aiChatConfig: AIChatMenuVisibilityConfigurable) -> MainMenu {
+        MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: DockCustomizerMock(),
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: aiChatConfig,
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+    }
+
+    @MainActor
+    func testDuckAIMenuIsVisible_whenShouldDisplayApplicationMenuShortcutIsTrue() throws {
+        // GIVEN
+        let aiChatConfig = DummyAIChatConfig()
+        aiChatConfig.shouldDisplayApplicationMenuShortcut = true
+        let sut = makeMainMenu(aiChatConfig: aiChatConfig)
+
+        // WHEN
+        let aiChatMenu = sut.item(withTitle: "Duck.ai")
+
+        // THEN
+        XCTAssertNotNil(aiChatMenu, "Duck.ai menu item should exist in the menu bar.")
+        XCTAssertFalse(aiChatMenu?.isHidden ?? true, "Duck.ai menu item should be visible when the AI chat flag is true.")
+    }
+
+    @MainActor
+    func testDuckAIMenuBecomesHidden_whenValuesChangedAndShouldDisplayApplicationMenuShortcutIsFalse() throws {
+        // GIVEN
+        let aiChatConfig = DummyAIChatConfig()
+        aiChatConfig.shouldDisplayApplicationMenuShortcut = true
+        let sut = makeMainMenu(aiChatConfig: aiChatConfig)
+        let aiChatMenu = try XCTUnwrap(sut.item(withTitle: "Duck.ai"))
+        XCTAssertFalse(aiChatMenu.isHidden)
+
+        // Subscribe on main queue so our assertion runs after MainMenu's setupAIChatMenu()
+        let expectation = expectation(description: "Duck.ai menu updated after config change")
+        let cancellable = aiChatConfig.valuesChangedPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { expectation.fulfill() }
+
+        // WHEN
+        aiChatConfig.shouldDisplayApplicationMenuShortcut = false
+        aiChatConfig.valuesChangedPublisher.send()
+        waitForExpectations(timeout: 1)
+        cancellable.cancel()
+
+        // THEN
+        XCTAssertTrue(aiChatMenu.isHidden)
+    }
+
+    @MainActor
+    func testDuckAIMenuBecomesVisible_whenValuesChangedAndShouldDisplayApplicationMenuShortcutIsTrue() throws {
+        // GIVEN
+        let aiChatConfig = DummyAIChatConfig()
+        aiChatConfig.shouldDisplayApplicationMenuShortcut = false
+        let sut = makeMainMenu(aiChatConfig: aiChatConfig)
+        let aiChatMenu = try XCTUnwrap(sut.item(withTitle: "Duck.ai"))
+        XCTAssertTrue(aiChatMenu.isHidden)
+
+        // Subscribe on main queue so our assertion runs after MainMenu's setupAIChatMenu()
+        let expectation = expectation(description: "Duck.ai menu updated after config change")
+        let cancellable = aiChatConfig.valuesChangedPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { expectation.fulfill() }
+
+        // WHEN
+        aiChatConfig.shouldDisplayApplicationMenuShortcut = true
+        aiChatConfig.valuesChangedPublisher.send()
+        waitForExpectations(timeout: 1)
+        cancellable.cancel()
+
+        // THEN
+        XCTAssertFalse(aiChatMenu.isHidden)
+    }
+
+    @MainActor
+    func testNewAIChatFileMenuItemIsHidden_whenDuckAIMenuIsVisible() throws {
+        // GIVEN
+        let aiChatConfig = DummyAIChatConfig()
+        aiChatConfig.shouldDisplayAnyAIChatFeature = true
+        aiChatConfig.shouldDisplayApplicationMenuShortcut = true
+        let sut = makeMainMenu(aiChatConfig: aiChatConfig)
+
+        // WHEN
+        let fileMenu = try XCTUnwrap(sut.item(withTitle: UserText.mainMenuFile)?.submenu)
+        let item = fileMenu.item(withTitle: UserText.newAIChatMenuItem)
+
+        // THEN
+        XCTAssertNotNil(item)
+        XCTAssertTrue(item?.isHidden == true)
+    }
+
+    @MainActor
+    func testNewAIChatFileMenuItemIsVisible_whenDuckAIMenuIsHiddenAndAIChatIsEnabled() throws {
+        // GIVEN
+        let aiChatConfig = DummyAIChatConfig()
+        aiChatConfig.shouldDisplayAnyAIChatFeature = true
+        aiChatConfig.shouldDisplayApplicationMenuShortcut = false
+        let sut = makeMainMenu(aiChatConfig: aiChatConfig)
+
+        // WHEN
+        let fileMenu = try XCTUnwrap(sut.item(withTitle: UserText.mainMenuFile)?.submenu)
+        let item = fileMenu.item(withTitle: UserText.newAIChatMenuItem)
+
+        // THEN
+        XCTAssertNotNil(item)
+        XCTAssertFalse(item?.isHidden ?? true)
+    }
+
+    @MainActor
+    func testNewAIChatFileMenuItemIsHidden_whenAIChatIsDisabled() throws {
+        // GIVEN
+        let aiChatConfig = DummyAIChatConfig()
+        aiChatConfig.shouldDisplayAnyAIChatFeature = false
+        aiChatConfig.shouldDisplayApplicationMenuShortcut = false
+        let sut = makeMainMenu(aiChatConfig: aiChatConfig)
+
+        // WHEN
+        let fileMenu = try XCTUnwrap(sut.item(withTitle: UserText.mainMenuFile)?.submenu)
+        let item = fileMenu.item(withTitle: UserText.newAIChatMenuItem)
+
+        // THEN
+        XCTAssertNotNil(item)
+        XCTAssertTrue(item?.isHidden == true)
+    }
+
+    @MainActor
+    func testMainMenuShowsFireWindowFirst_whenOpenFireWindowByDefaultIsEnabled() throws {
+        let isFireWindowDefault = true
+
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: DockCustomizerMock(),
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: isFireWindowDefault,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        let fileMenu = try XCTUnwrap(sut.item(withTitle: UserText.mainMenuFile))
+
+        XCTAssertEqual(fileMenu.submenu?.item(at: 1)?.title, UserText.newBurnerWindowMenuItem)
+        XCTAssertEqual(fileMenu.submenu?.item(at: 2)?.title, UserText.newWindowMenuItem)
+    }
+
+    @MainActor
+    func testMainMenuInitializedWithTrueOpenFileFlag_ThenOpenFileMenuItemIsVisible() throws {
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: DockCustomizerMock(),
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        let fileMenu = try XCTUnwrap(sut.item(withTitle: UserText.mainMenuFile))
+        let openFileMenuItem = fileMenu.submenu?.item(withTitle: UserText.mainMenuFileOpenFile)
+
+        XCTAssertNotNil(openFileMenuItem, "Open File menu item should exist in the file menu.")
+        XCTAssertFalse(openFileMenuItem?.isHidden ?? true, "Open File menu item should be visible when the openFileFeature feature flag is enabled.")
+    }
+
+    @MainActor
+    func testMainMenuShowsFireWindowSecond_whenOpenFireWindowByDefaultIsDisabled() throws {
+        let isFireWindowDefault = false
+
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: DockCustomizerMock(),
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: isFireWindowDefault,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        let fileMenu = try XCTUnwrap(sut.item(withTitle: UserText.mainMenuFile))
+
+        XCTAssertEqual(fileMenu.submenu?.item(at: 1)?.title, UserText.newWindowMenuItem)
+        XCTAssertEqual(fileMenu.submenu?.item(at: 2)?.title, UserText.newBurnerWindowMenuItem)
+    }
+
+    @MainActor
+    func testupdateMenuItemsPositionForFireWindowDefault_worksAsExpected() throws {
+        let sut = MainMenu(
+            featureFlagger: MockFeatureFlagger(),
+            bookmarkManager: MockBookmarkManager(),
+            historyCoordinator: HistoryCoordinatingMock(),
+            recentlyClosedCoordinator: RecentlyClosedCoordinatorMock(),
+            faviconManager: FaviconManagerMock(),
+            dockCustomizer: DockCustomizerMock(),
+            defaultBrowserPreferences: DefaultBrowserPreferences(defaultBrowserProvider: MockDefaultBrowserProvider()),
+            aiChatMenuConfig: DummyAIChatConfig(),
+            aiChatSuggestionsReader: DummyAIChatSuggestionsReader(),
+            aiChatHistoryCleaner: DummyAIChatHistoryCleaner(),
+            internalUserDecider: MockInternalUserDecider(),
+            appearancePreferences: appearancePreferences,
+            privacyConfigurationManager: MockPrivacyConfigurationManager(),
+            isFireWindowDefault: false,
+            configurationURLProvider: MockCustomURLProvider(),
+            contentScopePreferences: ContentScopePreferences(windowControllersManager: WindowControllersManagerMock()),
+            quitSurveyPersistor: MockQuitSurveyPersistor(),
+            pinningManager: MockPinningManager(),
+            subscriptionManager: SubscriptionManagerMock()
+        )
+
+        let fileMenu = try XCTUnwrap(sut.item(withTitle: UserText.mainMenuFile))
+
+        XCTAssertEqual(fileMenu.submenu?.item(at: 1)?.title, UserText.newWindowMenuItem)
+        XCTAssertEqual(fileMenu.submenu?.item(at: 2)?.title, UserText.newBurnerWindowMenuItem)
+
+        sut.updateMenuItemsPositionForFireWindowDefault(true)
+
+        XCTAssertEqual(fileMenu.submenu?.item(at: 2)?.title, UserText.newWindowMenuItem)
+        XCTAssertEqual(fileMenu.submenu?.item(at: 1)?.title, UserText.newBurnerWindowMenuItem)
+    }
+}
+
+// MARK: - LazyBookmarkFolderMenuDelegateTests
+
+@MainActor
+class LazyBookmarkFolderMenuDelegateTests: XCTestCase {
+
+    func testMenuIsEmptyBeforeFirstOpen() {
+        // GIVEN
+        let bookmark = Bookmark(id: "1", url: "https://example.com", title: "Example", isFavorite: false)
+        let viewModel = BookmarkViewModel(entity: bookmark)
+        let delegate = LazyBookmarkFolderMenuDelegate(children: [viewModel])
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem()) // placeholder
+        menu.delegate = delegate
+
+        // THEN
+        XCTAssertEqual(menu.items.count, 1)
+    }
+
+    func testMenuIsPopulatedAfterFirstOpen() {
+        // GIVEN
+        let bookmark = Bookmark(id: "1", url: "https://example.com", title: "Example Bookmark", isFavorite: false)
+        let viewModel = BookmarkViewModel(entity: bookmark)
+        let delegate = LazyBookmarkFolderMenuDelegate(children: [viewModel])
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem()) // placeholder
+        menu.delegate = delegate
+
+        // WHEN
+        delegate.menuNeedsUpdate(menu)
+
+        // THEN
+        XCTAssertFalse(menu.items.isEmpty)
+        XCTAssertEqual(menu.items.first?.title, "Example Bookmark")
+    }
+
+    func testMenuIsNotRebuiltOnSecondOpen() {
+        // GIVEN
+        let bookmark = Bookmark(id: "1", url: "https://example.com", title: "Example", isFavorite: false)
+        let viewModel = BookmarkViewModel(entity: bookmark)
+        let delegate = LazyBookmarkFolderMenuDelegate(children: [viewModel])
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem()) // placeholder
+        menu.delegate = delegate
+
+        // WHEN
+        delegate.menuNeedsUpdate(menu) // first open
+        let countAfterFirstOpen = menu.items.count
+        menu.addItem(NSMenuItem(title: "sentinel", action: nil, keyEquivalent: ""))
+        delegate.menuNeedsUpdate(menu) // second open — should not rebuild
+
+        // THEN
+        XCTAssertEqual(menu.items.count, countAfterFirstOpen + 1, "Sentinel should still be present — menu was not rebuilt")
+    }
+
+    func testEmptyFolderHasNoSubmenu() {
+        // GIVEN
+        let folder = BookmarkFolder(id: "1", title: "Empty Folder")
+        // no children added
+        let folderViewModel = BookmarkViewModel(entity: folder)
+
+        let delegate = LazyBookmarkFolderMenuDelegate(children: [folderViewModel])
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem()) // placeholder
+        menu.delegate = delegate
+
+        // WHEN
+        delegate.menuNeedsUpdate(menu)
+
+        // THEN
+        let folderItem = menu.items.first
+        XCTAssertNil(folderItem?.submenu, "Empty folder should not have a submenu")
+    }
+
+    func testFolderChildrenGetLazySubmenus() {
+        // GIVEN
+        let childBookmark = Bookmark(id: "2", url: "https://child.com", title: "Child", isFavorite: false)
+        let folder = BookmarkFolder(id: "f1", title: "My Folder", children: [childBookmark])
+        let folderViewModel = BookmarkViewModel(entity: folder)
+        let delegate = LazyBookmarkFolderMenuDelegate(children: [folderViewModel])
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem()) // placeholder
+        menu.delegate = delegate
+
+        // WHEN
+        delegate.menuNeedsUpdate(menu)
+
+        // THEN
+        let folderItem = menu.items.first
+        let subMenu = folderItem?.submenu
+        XCTAssertNotNil(subMenu, "Folder menu item should have a submenu")
+        XCTAssertEqual(subMenu?.items.count, 1, "Submenu should contain exactly one placeholder item")
+        XCTAssertNotNil(subMenu?.delegate, "Submenu should have a delegate for lazy population")
+    }
+}
+
+private final class DummyAIChatSuggestionsReader: AIChatSuggestionsReading {
+    var maxHistoryCount: Int = 0
+    func fetchSuggestions(query: String?, maxChats: Int) async -> (pinned: [AIChatSuggestion], recent: [AIChatSuggestion]) { ([], []) }
+    func tearDown() {}
+}
+
+private final class DummyAIChatHistoryCleaner: AIChatHistoryCleaning {
+    var shouldDisplayCleanAIChatHistoryOption: Bool = false
+    var shouldDisplayCleanAIChatHistoryOptionPublisher: AnyPublisher<Bool, Never> { Just(false).eraseToAnyPublisher() }
+    @MainActor func cleanAIChatHistory() async -> Result<Void, Error> { .success(()) }
+}
+
+class DummyAIChatConfig: AIChatMenuVisibilityConfigurable {
+    var shouldDisplayNewTabPageShortcut = false
+    var shouldDisplayApplicationMenuShortcut = false
+    var shouldDisplayMoreOptionsMenuShortcut = false
+    var shouldDisplayAddressBarShortcut = false
+    var shouldDisplayAddressBarShortcutWhenTyping = false
+    var shouldDisplayAnyAIChatFeature = false
+    var shouldOpenAIChatInSidebar = false
+    var shouldDisplaySummarizationMenuItem = false
+    var shouldDisplayTranslationMenuItem = false
+    var shouldAutomaticallySendPageContext = false
+    var shouldAutomaticallySendPageContextTelemetryValue: Bool?
+
+    var valuesChangedPublisher = PassthroughSubject<Void, Never>()
+
+    func markToolbarOnboardingPopoverAsShown() { }
+}

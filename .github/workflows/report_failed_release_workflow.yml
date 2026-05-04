@@ -1,0 +1,36 @@
+name: Report Failed Release Workflow
+
+on:
+  workflow_call:
+    inputs:
+      asana-task-id:
+        description: "Asana release task ID (deprecated, kept for compatibility)"
+        required: false
+        type: string
+      branch:
+        description: "Branch"
+        required: true
+        type: string
+      commit-sha:
+        description: "Commit SHA"
+        required: false
+        type: string
+      platform:
+        description: "Platform (ios/macos)"
+        required: true
+        type: string
+      workflow-name:
+        description: "Workflow name"
+        required: true
+        type: string
+jobs:
+  report_failure:
+    name: Report Failure
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Report failed workflow
+        run: |
+          echo "::notice::Workflow '${{ inputs.workflow-name }}' failed on branch '${{ inputs.branch }}'. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"

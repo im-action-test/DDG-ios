@@ -1,0 +1,19 @@
+# copy_recovery_code_from_settings.yaml
+
+appId: com.duckduckgo.mobile.ios
+---
+
+#Open Debug Menu
+- runFlow:
+    file: ./open_debug_menu.yaml
+
+- scrollUntilVisible:
+    element: Sync
+    direction: DOWN
+    centerElement: true
+- tapOn: Sync
+- tapOn: Paste and Copy Recovery Code
+- inputText: ${CODE}
+- tapOn: Copy
+- tapOn: Debug
+- tapOn: Settings

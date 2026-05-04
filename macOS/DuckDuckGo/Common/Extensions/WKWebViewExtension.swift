@@ -1,0 +1,560 @@
+//
+//  WKWebViewExtension.swift
+//
+//  Copyright © 2021 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import Combine
+import Common
+import CommonObjCExtensions
+import Navigation
+import os.log
+import WebKit
+
+extension WKWebView {
+
+    static var canMuteCameraAndMicrophoneSeparately: Bool {
+        if #available(macOS 12.0, *) {
+            return true
+        }
+        return false
+    }
+
+    enum AudioState {
+        case muted(isPlayingAudio: Bool)
+        case unmuted(isPlayingAudio: Bool)
+
+        init(wkMediaMutedState: _WKMediaMutedState, isPlayingAudio: Bool) {
+            self = wkMediaMutedState.contains(.audioMuted) ? .muted(isPlayingAudio: isPlayingAudio) : .unmuted(isPlayingAudio: isPlayingAudio)
+        }
+
+        var isMuted: Bool {
+            if case .muted = self {
+                return true
+            }
+            return false
+        }
+
+        var isPlayingAudio: Bool {
+            switch self {
+            case .muted(let playing), .unmuted(let playing): return playing
+            }
+        }
+
+        mutating func toggle() {
+            self = switch self {
+            case let .muted(isPlayingAudio): .unmuted(isPlayingAudio: isPlayingAudio)
+            case let .unmuted(isPlayingAudio): .muted(isPlayingAudio: isPlayingAudio)
+            }
+        }
+    }
+
+    enum CaptureState {
+        case none
+        case active
+        case muted
+
+        @available(macOS 12.0, *)
+        init(_ state: WKMediaCaptureState) {
+            switch state {
+            case .none: self = .none
+            case .active: self = .active
+            case .muted: self = .muted
+            @unknown default: self = .none
+            }
+        }
+
+        init(permissionType: PermissionType, mediaCaptureState: _WKMediaCaptureStateDeprecated) {
+            switch permissionType {
+            case .microphone:
+                if mediaCaptureState.contains(.activeMicrophone) {
+                    self = .active
+                } else if mediaCaptureState.contains(.mutedMicrophone) {
+                    self = .muted
+                } else {
+                    self = .none
+                }
+            case .camera:
+                if mediaCaptureState.contains(.activeCamera) {
+                    self = .active
+                } else if mediaCaptureState.contains(.mutedCamera) {
+                    self = .muted
+                } else {
+                    self = .none
+                }
+            default:
+                fatalError("Not implemented")
+            }
+        }
+    }
+
+    @nonobjc private var mediaCaptureState: _WKMediaCaptureStateDeprecated {
+        guard self.responds(to: Selector.mediaCaptureState),
+              let method = class_getInstanceMethod(object_getClass(self), Selector.mediaCaptureState) else {
+            assertionFailure("WKWebView does not respond to selector _mediaCaptureState")
+            return .none
+        }
+        let imp = method_getImplementation(method)
+        typealias MediaCaptureStateType = @convention(c) (WKWebView, ObjectiveC.Selector) -> UInt
+        let mediaCaptureStateGetter = unsafeBitCast(imp, to: MediaCaptureStateType.self)
+        let mediaCaptureState = mediaCaptureStateGetter(self, Selector.mediaCaptureState)
+        return _WKMediaCaptureStateDeprecated(rawValue: mediaCaptureState)
+    }
+
+    var microphoneState: CaptureState {
+        guard #available(macOS 12.0, *) else {
+            return CaptureState(permissionType: .microphone, mediaCaptureState: self.mediaCaptureState)
+        }
+        return CaptureState(self.microphoneCaptureState)
+    }
+
+    var cameraState: CaptureState {
+        guard #available(macOS 12.0, *) else {
+            return CaptureState(permissionType: .camera, mediaCaptureState: self.mediaCaptureState)
+        }
+        return CaptureState(self.cameraCaptureState)
+    }
+
+    var geolocationState: CaptureState {
+        guard let geolocationProvider = self.configuration.processPool.geolocationProvider,
+              [.authorizedAlways, .authorized].contains(geolocationProvider.authorizationStatus),
+              !geolocationProvider.isRevoked,
+              geolocationProvider.isActive
+        else {
+            return .none
+        }
+        if geolocationProvider.isPaused {
+            return .muted
+        }
+        return .active
+    }
+
+    @objc dynamic var mediaMutedState: UInt /*_WKMediaMutedState*/ {
+        get {
+            guard self.responds(to: Selector.mediaMutedState),
+                  let method = class_getInstanceMethod(object_getClass(self), Selector.mediaMutedState) else {
+                assertionFailure("WKWebView does not respond to selector _mediaMutedState")
+                return _WKMediaMutedState.noneMuted.rawValue
+            }
+            let imp = method_getImplementation(method)
+            typealias MediaMutedStateType = @convention(c) (WKWebView, ObjectiveC.Selector) -> UInt
+            let mediaMutedStateGetter = unsafeBitCast(imp, to: MediaMutedStateType.self)
+            let mediaMutedState = mediaMutedStateGetter(self, Selector.mediaMutedState)
+            return mediaMutedState
+        }
+        set {
+            guard self.responds(to: Selector.setPageMuted),
+                  let method = class_getInstanceMethod(object_getClass(self), Selector.setPageMuted) else {
+                assertionFailure("WKWebView does not respond to selector _setPageMuted:")
+                return
+            }
+            let imp = method_getImplementation(method)
+            typealias SetPageMutedStateType = @convention(c) (WKWebView, ObjectiveC.Selector, UInt) -> Void
+            let setMediaMutedStateGetter = unsafeBitCast(imp, to: SetPageMutedStateType.self)
+            setMediaMutedStateGetter(self, Selector.setPageMuted, newValue)
+        }
+    }
+
+    var typedMediaMutedState: _WKMediaMutedState {
+        get {
+            _WKMediaMutedState(rawValue: mediaMutedState)
+        }
+        set {
+            mediaMutedState = newValue.rawValue
+        }
+    }
+
+    /// Returns the audio state of the WKWebView.
+    ///
+    /// - Returns: `muted` if the web view is muted
+    ///            `unmuted` if the web view is unmuted
+    var audioState: AudioState {
+        get {
+            AudioState(wkMediaMutedState: typedMediaMutedState, isPlayingAudio: isPlayingAudio)
+        }
+        set {
+            switch newValue {
+            case .muted:
+                self.typedMediaMutedState.insert(.audioMuted)
+            case .unmuted:
+                self.typedMediaMutedState.remove(.audioMuted)
+            }
+        }
+    }
+
+    var audioStatePublisher: AnyPublisher<AudioState, Never> {
+        publisher(for: \.mediaMutedState)
+            .combineLatest(publisher(for: \.isPlayingAudio))
+            .map { AudioState(wkMediaMutedState: _WKMediaMutedState(rawValue: $0), isPlayingAudio: $1) }
+            .eraseToAnyPublisher()
+    }
+
+    @objc(webViewIsPlayingAudio) // named this way to avoid clashing with a real method when (in case) it becomes public
+    var isPlayingAudio: Bool {
+        return self.value(forKey: Selector.isPlayingAudio) as? Bool ?? false
+    }
+
+    @objc(keyPathsForValuesAffectingWebViewIsPlayingAudio)
+    static func keyPathsForValuesAffectingIsPlayingAudio() -> Set<String> {
+        return [NSStringFromSelector(Selector.mediaMutedState), Selector.isPlayingAudio]
+    }
+
+    func stopMediaCapture() {
+        guard #available(macOS 12.0, *) else {
+            guard self.responds(to: Selector.stopMediaCapture) else {
+                assertionFailure("WKWebView does not respond to _stopMediaCapture")
+                return
+            }
+            self.perform(Selector.stopMediaCapture)
+            return
+        }
+
+        setCameraCaptureState(.none)
+        setMicrophoneCaptureState(.none)
+    }
+
+    func stopAllMediaPlayback() {
+        guard #available(macOS 12.0, *) else {
+            guard self.responds(to: Selector.stopAllMediaPlayback) else {
+                assertionFailure("WKWebView does not respond to _stopAllMediaPlayback")
+                return
+            }
+            self.perform(Selector.stopAllMediaPlayback)
+            return
+        }
+        pauseAllMediaPlayback()
+    }
+
+    func setPermissions(_ permissions: [PermissionType], muted: Bool) {
+        for permission in permissions {
+            switch permission {
+            case .camera:
+                guard #available(macOS 12.0, *) else {
+                    if muted {
+                        self.typedMediaMutedState.insert(.captureDevicesMuted)
+                    } else {
+                        self.typedMediaMutedState.remove(.captureDevicesMuted)
+                    }
+                    return
+                }
+
+                self.setCameraCaptureState(muted ? .muted : .active, completionHandler: {})
+
+            case .microphone:
+                guard #available(macOS 12.0, *) else {
+                    if muted {
+                        self.typedMediaMutedState.insert(.captureDevicesMuted)
+                    } else {
+                        self.typedMediaMutedState.remove(.captureDevicesMuted)
+                    }
+                    return
+                }
+
+                self.setMicrophoneCaptureState(muted ? .muted : .active, completionHandler: {})
+            case .geolocation:
+                self.configuration.processPool.geolocationProvider?.isPaused = muted
+            case .popups, .externalScheme, .notification, .autoplayPolicy:
+                assertionFailure("The permission don't support pausing")
+            }
+        }
+    }
+
+    func revokePermissions(_ permissions: [PermissionType], completionHandler: (() -> Void)? = nil) {
+        for permission in permissions {
+            switch permission {
+            case .camera:
+                if #available(macOS 12.0, *) {
+                    self.setCameraCaptureState(.none, completionHandler: {})
+                } else {
+                    self.stopMediaCapture()
+                }
+            case .microphone:
+                if #available(macOS 12.0, *) {
+                    self.setMicrophoneCaptureState(.none, completionHandler: {})
+                } else {
+                    self.stopMediaCapture()
+                }
+            case .geolocation:
+                self.configuration.processPool.geolocationProvider?.revoke()
+            case .popups, .externalScheme, .notification, .autoplayPolicy:
+                continue
+            }
+        }
+    }
+
+    func close() {
+        self.evaluateJavaScript("window.close()")
+    }
+
+    func loadInNewWindow(_ url: URL) {
+        let urlEnc = "'\(url.absoluteString.escapedJavaScriptString())'"
+        self.evaluateJavaScript("window.open(\(urlEnc), '_blank', 'noopener, noreferrer')")
+    }
+
+    func loadAlternateHTML(_ html: String, baseURL: URL, forUnreachableURL failingURL: URL) {
+        guard responds(to: Selector.loadAlternateHTMLString),
+              let method = class_getInstanceMethod(object_getClass(self), Selector.loadAlternateHTMLString) else {
+            if #available(macOS 12.0, *) {
+                Logger.navigation.error("WKWebView._loadAlternateHTMLString not available")
+                loadSimulatedRequest(URLRequest(url: failingURL), responseHTML: html)
+            }
+            return
+        }
+
+        let imp = method_getImplementation(method)
+        typealias LoadAlternateHTMLStringType = @convention(c) (WKWebView, ObjectiveC.Selector, NSString, NSURL, NSURL) -> Void
+        let loadAlternateHTMLString = unsafeBitCast(imp, to: LoadAlternateHTMLStringType.self)
+        loadAlternateHTMLString(self, Selector.loadAlternateHTMLString, html as NSString, baseURL as NSURL, failingURL as NSURL)
+    }
+
+    func setDocumentHtml(_ html: String) {
+        self.evaluateJavaScript("document.open(); document.write('\(html.escapedJavaScriptString())'); document.close()", in: nil, in: .defaultClient)
+    }
+
+    @MainActor
+    var mimeType: String? {
+        get async {
+            try? await self.evaluateJavaScript("document.contentType")
+        }
+    }
+
+    var canPrint: Bool {
+        !self.isInFullScreenMode
+    }
+
+    func printOperation(with printInfo: NSPrintInfo = .shared, for frame: FrameHandle?) -> NSPrintOperation? {
+        if let frame = frame, responds(to: Selector.printOperationWithPrintInfoForFrame) {
+            return self.perform(Selector.printOperationWithPrintInfoForFrame, with: printInfo, with: frame)?.takeUnretainedValue() as? NSPrintOperation
+        }
+
+        let printInfoDictionary = (NSPrintInfo.shared.dictionary() as? [NSPrintInfo.AttributeKey: Any]) ?? [:]
+        let printInfo = NSPrintInfo(dictionary: printInfoDictionary)
+
+        printInfo.horizontalPagination = .automatic
+        printInfo.verticalPagination = .automatic
+        printInfo.leftMargin = 0
+        printInfo.rightMargin = 0
+        printInfo.topMargin = 0
+        printInfo.bottomMargin = 0
+        printInfo.scalingFactor = 0.95
+
+        return self.printOperation(with: printInfo)
+    }
+
+    func hudView(at point: NSPoint? = nil) -> WKPDFHUDViewWrapper? {
+        WKPDFHUDViewWrapper.getPdfHudView(in: self, at: point)
+    }
+
+    func savePDF(_ pdfHUD: WKPDFHUDViewWrapper? = nil) -> Bool {
+        guard let hudView = pdfHUD ?? hudView() else { return false }
+        hudView.savePDF()
+        return true
+    }
+
+    var fullScreenPlaceholderView: NSView? {
+        guard self.responds(to: Selector.fullScreenPlaceholderView) else { return nil }
+        return self.value(forKey: NSStringFromSelector(Selector.fullScreenPlaceholderView)) as? NSView
+    }
+
+    var webProcessIdentifier: pid_t? {
+        guard self.responds(to: Selector.webProcessIdentifier) else { return nil }
+        return self.value(forKey: NSStringFromSelector(Selector.webProcessIdentifier)) as? pid_t
+    }
+
+    func removeFocusFromWebView() {
+        guard self.window?.firstResponder === self else { return }
+        self.superview?.makeMeFirstResponder()
+    }
+
+    /// Collapses page text selection to the start of the first range in the selection.
+    @MainActor
+    func collapseSelectionToStart() async throws {
+        try await evaluateJavaScript("""
+            try {
+                window.getSelection().collapseToStart()
+            } catch {}
+        """) as Void?
+    }
+
+    @MainActor
+    func deselectAll() async throws {
+        try await evaluateJavaScript("""
+            try {
+                window.getSelection().removeAllRanges()
+            } catch {}
+        """) as Void?
+    }
+
+    var addsVisitedLinks: Bool {
+        get {
+            guard self.responds(to: Selector.addsVisitedLinks) else {
+                assertionFailure("WKWebView doesn‘t respond to _addsVisitedLinks")
+                return false
+            }
+            return self.value(forKey: NSStringFromSelector(Selector.addsVisitedLinks)) as? Bool ?? false
+        }
+        set {
+            guard self.responds(to: Selector.addsVisitedLinks) else {
+                assertionFailure("WKWebView doesn‘t respond to _setAddsVisitedLinks:")
+                return
+            }
+            self.perform(Selector.setAddsVisitedLinks, with: newValue ? true : nil)
+        }
+    }
+
+    @MainActor
+    var currentSelectionLanguage: String? {
+        get async {
+            let js = """
+                (function() {
+                    // BCP 47 language tag regex
+                    const bcp47 = /^(?:en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE|art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang|(?<langtag>(?<language>[A-Za-z]{2,3}(?<extlang>-[A-Za-z]{3}(-[A-Za-z]{3}){0,2})?|[A-Za-z]{4,8})(?:-(?<script>[A-Za-z]{4}))?(?:-(?<region>[A-Za-z]{2}|[0-9]{3}))?(?<variants>(?:-(?:[0-9A-Za-z]{5,8}|[0-9][0-9A-Za-z]{3}))*)(?<extensions>(?:-(?:[0-9A-WY-Za-wy-z](?:-[0-9A-Za-z]{2,8})+))*)(?:-(?<privateuse>x(?:-[0-9A-Za-z]{1,8})+))?)|(?<privateuse>x(?:-[0-9A-Za-z]{1,8})+))$/mgi
+
+                    // Get the Selection from the currently focused document (top or same-origin iframe)
+                    function getActiveSelection() {
+                        const activeElement = document.activeElement;
+                        if (activeElement && activeElement.tagName === 'IFRAME') {
+                            try {
+                                return activeElement.contentWindow?.getSelection() || null;
+                            } catch {
+                                // Cross-origin iframe: cannot access its selection
+                            }
+                        }
+                        return window.getSelection?.() || null;
+                    }
+
+                    const selection = getActiveSelection();
+                    const startContainer = selection?.rangeCount ? selection.getRangeAt(0).startContainer : null;
+
+                    // If no selection, use the document's lang (or null if absent)
+                    if (!startContainer) {
+                        return document.documentElement.getAttribute('lang') || null;
+                    }
+
+                    // If the start is a text node, step up to its parent element
+                    const startElement =
+                        startContainer.nodeType === Node.ELEMENT_NODE
+                            ? startContainer
+                            : startContainer.parentElement;
+
+                    // Look up the DOM tree for a lang attribute; fallback to the document's lang
+                    const lang = startElement?.closest('[lang]')?.getAttribute('lang') ||
+                        document.documentElement.getAttribute('lang');
+
+                    // Validate the lang attribute against the BCP 47 regex
+                    if (lang && bcp47.test(lang)) return lang;
+
+                    return null;
+                })();
+                """
+            return try? await self.evaluateJavaScript(js)
+        }
+    }
+
+    private enum Selector {
+        static let fullScreenPlaceholderView = NSSelectorFromString("_fullScreenPlaceholderView")
+        static let printOperationWithPrintInfoForFrame = NSSelectorFromString("_printOperationWithPrintInfo:forFrame:")
+        static let loadAlternateHTMLString = NSSelectorFromString("_loadAlternateHTMLString:baseURL:forUnreachableURL:")
+        static let mediaMutedState = NSSelectorFromString("_mediaMutedState")
+        static let setPageMuted = NSSelectorFromString("_setPageMuted:")
+        static let setAddsVisitedLinks = NSSelectorFromString("_setAddsVisitedLinks:")
+        static let addsVisitedLinks = NSSelectorFromString("_addsVisitedLinks")
+        static let isPlayingAudio = "_isPlayingAudio"
+        static let webProcessIdentifier = NSSelectorFromString("_webProcessIdentifier")
+
+        @available(macOS, deprecated: 12.0, message: "This needs to be removed when macOS 11 support is dropped.")
+        static let mediaCaptureState = NSSelectorFromString("_mediaCaptureState")
+        @available(macOS, deprecated: 12.0, message: "This needs to be removed when macOS 11 support is dropped.")
+        static let stopMediaCapture = NSSelectorFromString("_stopMediaCapture")
+        @available(macOS, deprecated: 12.0, message: "This needs to be removed when macOS 11 support is dropped.")
+        static let stopAllMediaPlayback = NSSelectorFromString("_stopAllMediaPlayback")
+    }
+
+    // prevent exception if private API keys go missing
+    open override func value(forUndefinedKey key: String) -> Any? {
+        if key == #keyPath(serverTrust) {
+            return self.serverTrust
+        }
+        assertionFailure("valueForUndefinedKey: \(key)")
+        return nil
+    }
+
+}
+
+struct _WKMediaCaptureStateDeprecated: OptionSet {
+    let rawValue: UInt
+
+    static let none = Self([])
+    static let activeMicrophone = Self(rawValue: (1 << 0))
+    static let activeCamera = Self(rawValue: 1 << 1)
+    static let mutedMicrophone = Self(rawValue: 1 << 2)
+    static let mutedCamera = Self(rawValue: 1 << 3)
+}
+
+struct _WKMediaMutedState: OptionSet {
+    let rawValue: UInt
+
+    static let noneMuted = Self([])
+    static let audioMuted = Self(rawValue: 1 << 0)
+    static let captureDevicesMuted = Self(rawValue: 1 << 1)
+    static let screenCaptureMuted = Self(rawValue: 1 << 2)
+}
+
+struct _WKCaptureDevices: OptionSet {
+    let rawValue: UInt
+
+    static let microphone = Self(rawValue: 1 << 0)
+    static let camera = Self(rawValue: 1 << 1)
+    static let display = Self(rawValue: 1 << 2)
+}
+
+// https://github.com/WebKit/WebKit/blob/407a96d094af6d48100f4524d964667336d962b4/Source/WebKit/Shared/API/Cocoa/_WKRenderingProgressEvents.h
+struct _WKRenderingProgressEvents: OptionSet {
+    let rawValue: UInt
+
+    static let firstLayout = Self(rawValue: 1 << 0)
+    static let firstVisuallyNonEmptyLayout = Self(rawValue: 1 << 1)
+    static let firstPaintWithSignificantArea = Self(rawValue: 1 << 2)
+    static let reachedSessionRestorationRenderTreeSizeThreshold = Self(rawValue: 1 << 3)
+    static let firstLayoutAfterSuppressedIncrementalRendering = Self(rawValue: 1 << 4)
+    static let firstPaintAfterSuppressedIncrementalRendering = Self(rawValue: 1 << 5)
+    static let firstPaint = Self(rawValue: 1 << 6)
+    static let didRenderSignificantAmountOfText = Self(rawValue: 1 << 7)
+    static let firstMeaningfulPaint = Self(rawValue: 1 << 8)
+}
+
+struct _WKFindOptions: OptionSet {
+    let rawValue: UInt
+
+    static let caseInsensitive = Self(rawValue: 1 << 0)
+    static let atWordStarts = Self(rawValue: 1 << 1)
+    static let treatMedialCapitalAsWordStart = Self(rawValue: 1 << 2)
+    static let backwards = Self(rawValue: 1 << 3)
+    static let wrapAround = Self(rawValue: 1 << 4)
+    static let showOverlay = Self(rawValue: 1 << 5)
+    static let showFindIndicator = Self(rawValue: 1 << 6)
+    static let showHighlight = Self(rawValue: 1 << 7)
+    static let noIndexChange = Self(rawValue: 1 << 8)
+    static let determineMatchIndex = Self(rawValue: 1 << 9)
+}
+
+enum _WKImmediateActionType: UInt {
+    case `none` = 0
+    case linkPreview = 1
+    case dataDetectedItem = 2
+    case lookupText = 3
+    case mailtoLink = 4
+    case telLink = 5
+}

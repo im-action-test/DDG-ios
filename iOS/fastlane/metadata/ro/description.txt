@@ -1,0 +1,28 @@
+La DuckDuckGo, credem că modul cel mai bun de a-ți proteja datele personale împotriva hackerilor, a escrocilor și a companiilor care încalcă dreptul la confidențialitate este să împiedici colectarea lor. De aceea, milioane de oameni aleg browserul gratuit DuckDuckGo în loc de Chrome și alte browsere. Motorul nostru de căutare încorporat este asemănător cu Google, dar nu îți urmărește niciodată căutările. Protecțiile noastre de navigare ajută la împiedicarea altor companii să colecteze datele tale. În tot acest timp, funcțiile noastre opționale integrate de IA, Search Assist și Duck.ai sunt private și nu îți folosesc niciodată datele pentru a antrena IA. Preia din nou controlul asupra datelor tale personale cu browserul conceput pentru protecția datelor, nu pentru colectarea lor. 
+
+CARACTERISTICI PRINCIPALE ALE FUNCȚIEI 
+DuckDuckGo Search este încorporat, astfel încât să poți căuta cu ușurință online fără a fi urmărit.  
+Serviciul terț Tracker Loading Protection blochează majoritatea tehnologiilor de urmărire înainte de a se încărca, depășind cu mult ceea ce oferă implicit cele mai populare browsere.  
+Duck.ai îți permite să porți conversații private cu modele de IA terțe, anonimizate de noi și care nu sunt niciodată folosite pentru a antrena IA.
+Utilizează Email Protection pentru a bloca majoritatea tehnologiilor de urmărire prin e-mail și ascunde-ți adresa de e-mail existentă cu adrese @duck.com.   
+Duck Player te protejează de reclamele și modulele cookie direcționate de pe YouTube cu o interfață care nu îți distrage atenția și care include cele mai stricte setări de confidențialitate YouTube pentru videoclipuri încorporate. 
+Blochează companiile să combine informații despre browserul și dispozitivul tău. 
+Sincronizează marcajele și parolele criptate pe dispozitivele tale. 
+Șterge-ți filele și datele de navigare într-o clipă, cu Fire Button. 
+Elimină automat ferestrele pop-up pentru module cookie.
+Și multe alte protecții care nu sunt disponibile pe majoritatea browserelor. 
+ 
+Abonament DuckDuckGo
+Abonații primesc: 
+• VPN-ul nostru: securizează-ți conexiunea pe până la 5 dispozitive. 
+• Acces la modele avansate de IA în Duck.ai: fă chat în privat cu modele IA create pentru sarcini complexe.
+• Personal Information Removal: găsește și elimină informațiile personale de pe site-urile care le stochează și le vând.
+• Identity Theft Restoration: dacă identitatea ta este furată, te vom ajuta să o restabilești.
+ 
+Prețul și condițiile aplicabile abonamentului DuckDuckGo   
+Plata va fi debitată automat din contul tău Apple până când anulezi, lucru pe care îl poți face din setările aplicației. Ai opțiunea de a furniza o adresă de e-mail pentru a-ți activa abonamentul pe alte dispozitive și vom folosi acea adresă de e-mail doar pentru a-ți verifica abonamentul. Pentru condițiile de prestare a serviciilor și politica de confidențialitate, vizitează https://duckduckgo.com/pro/privacy-terms 
+Citește mai multe despre instrumentele noastre gratuite de protecție împotriva urmăririi, la adresa: https://help.duckduckgo.com/privacy/web-tracking-protections 
+Politica de confidențialitate: https://duckduckgo.com/privacy/  
+Condiții de prestare a serviciilor: https://duckduckgo.com/terms 
+Notă despre protecția împotriva tehnologiilor de urmărire externe și anunțurile de căutare: deși există unele limitări după clickurile pe anunțurile de căutare, vizualizarea anunțurilor pe DuckDuckGo este anonimă. Află mai multe aici https://help.duckduckgo.com/privacy/web-tracking-protections
+ 

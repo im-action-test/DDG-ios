@@ -1,0 +1,42 @@
+appId: com.duckduckgo.mobile.ios
+tags:
+    - iphone
+    - privacy
+
+---
+
+# Set up 
+- runFlow: 
+    file: ../shared/setup.yaml
+
+# Load Site
+- assertVisible:
+    id: "searchEntry"
+- tapOn: 
+    id: "searchEntry"
+- inputText: "privacy blogs"
+- pressKey: Enter
+
+# Change settings
+- tapOn: "Safe search"
+- tapOn: "Off"
+
+# Fire Button - twice, just to be sure
+- runFlow:
+    file: ../shared/use_firebutton.yaml
+- assertVisible:
+    id: "searchEntry"
+- runFlow:
+    when:
+        visible: "Cancel"
+    commands:
+        - tapOn: "Cancel"
+- runFlow:
+    file: ../shared/use_firebutton.yaml
+
+# Validate Cookie was retained
+- tapOn: 
+    id: "searchEntry"
+- inputText: "creepy trackers"
+- pressKey: Enter
+- assertVisible: "Safe search: off"

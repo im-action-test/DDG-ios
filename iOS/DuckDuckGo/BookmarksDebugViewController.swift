@@ -1,0 +1,265 @@
+//
+//  BookmarksDebugViewController.swift
+//  DuckDuckGo
+//
+//  Copyright © 2024 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import UIKit
+import SwiftUI
+import Core
+import Combine
+import Persistence
+import Bookmarks
+import CoreData
+
+class BookmarksDebugViewController: UIHostingController<BookmarksDebugRootView> {
+
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder, rootView: BookmarksDebugRootView())
+    }
+
+}
+
+struct BookmarksDebugRootView: View {
+
+    @ObservedObject var model = BookmarksDebugViewModel()
+    @State private var showingDestructiveAlert = false
+    @State private var showingConvertAlert = false
+
+    @ViewBuilder func toolsSection() -> some View {
+        Section {
+            SettingsCellView(label: "Make Favorites", subtitle: "Convert all bookmarks to favorites. Restart the app after running this.", action: {
+                showingConvertAlert = true
+            }, isButton: true)
+        } header: {
+            Text(verbatim: "Tools")
+        }
+    }
+
+    @ViewBuilder func itemsSection() -> some View {
+        Section {
+            ForEach(model.bookmarks, id: \.id) { entry in
+                VStack(alignment: .leading) {
+                    Text(entry.title ?? "empty!")
+                        .font(.system(size: 16))
+                    Text("Is unified fav: " + (entry.isFavorite(on: .unified) ? "true" : "false") )
+                        .font(.system(size: 12))
+                    Text("Is mobile fav: " + (entry.isFavorite(on: .mobile) ? "true" : "false") )
+                        .font(.system(size: 12))
+                    Text("Is desktop fav: " + (entry.isFavorite(on: .desktop) ? "true" : "false") )
+                        .font(.system(size: 12))
+                    ForEach(model.bookmarkAttributes, id: \.self) { attr in
+                        Text(entry.formattedValue(for: attr))
+                            .font(.system(size: 12))
+                    }
+                }
+            }
+        } header: {
+            Text(verbatim: "Bookmarks")
+        }
+    }
+
+    var body: some View {
+        List {
+
+            toolsSection()
+
+            itemsSection()
+        }
+        .navigationTitle("\(model.bookmarks.count) Bookmarks")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showingDestructiveAlert = true
+                } label: {
+                    Text(verbatim: "Delete All")
+                }
+            }
+        }
+        .alert(Text(verbatim: "Operation Complete"), isPresented: $model.showingOperationComplete) {
+            Button(role: .cancel) {
+
+            } label: {
+                Text(verbatim: "Done")
+            }
+        } message: {
+            Text(model.operationCompleteMessage)
+        }
+        .alert(Text(verbatim: "Confirm"), isPresented: $showingConvertAlert) {
+            Button(role: .cancel) { } label: { Text(verbatim: "Cancel") }
+            Button(role: .destructive) {
+                model.convertAllBookmarksToFavorites()
+            } label: {
+                Text(verbatim: "Convert")
+            }
+        } message: {
+            Text(verbatim: "Are you sure you want to convert all bookmarks to favorites?")
+        }
+        .alert(Text(verbatim: "Confirm Delete"), isPresented: $showingDestructiveAlert) {
+            Button(role: .cancel) {} label: { Text(verbatim: "Cancel") }
+            Button(role: .destructive) {
+                model.deleteAll()
+            } label: {
+                Text(verbatim: "Delete")
+            }
+        } message: {
+            Text(verbatim: "Are you sure you want to delete all bookmarks? This action cannot be undone.")
+        }
+    }
+
+}
+
+extension BookmarkEntity {
+
+    func formattedValue(for key: String) -> String {
+        key + ": \'" + String(describing: value(forKey: key)) + "'"
+    }
+}
+
+class BookmarksDebugViewModel: ObservableObject {
+
+    @Published var showingOperationComplete = false
+    @Published var operationCompleteMessage = ""
+    @Published var bookmarks = [BookmarkEntity]()
+    let bookmarkAttributes: [String]
+
+    let database: CoreDataDatabase
+    let context: NSManagedObjectContext
+
+    /// All entities within the bookmarks store must exist under this root level folder. Because this value is used so frequently, it is cached here.
+    private var rootLevelFolderObjectID: NSManagedObjectID?
+
+    /// All favorites must additionally be children of this special folder. Because this value is used so frequently, it is cached here.
+    private var favoritesFolderObjectID: NSManagedObjectID?
+
+    init() {
+        database = BookmarksDatabase.make()
+        database.loadStore()
+
+        context = database.makeContext(concurrencyType: .mainQueueConcurrencyType)
+        bookmarkAttributes = Array(BookmarkEntity.entity(in: context).attributesByName.keys)
+
+        fetch()
+    }
+
+    func convertAllBookmarksToFavorites() {
+        let fetchRequest = BookmarkEntity.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: #keyPath(BookmarkEntity.title),
+                                                         ascending: false)]
+        fetchRequest.returnsObjectsAsFaults = false
+        let bookmarks = (try? context.fetch(fetchRequest)) ?? []
+        bookmarks.forEach { bookmark in
+            if !bookmark.isFolder {
+                bookmark.addToFavorites(with: .displayNative(.mobile), in: context)
+            }
+        }
+
+        do {
+            try context.save()
+            operationCompleteMessage = "Success - please restart the app"
+        } catch {
+            operationCompleteMessage = error.localizedDescription
+            Logger.bookmarks.error("Error converting to bookmarks: \(error.localizedDescription, privacy: .public)")
+        }
+        showingOperationComplete = true
+    }
+
+    func fetch() {
+
+        let fetchRequest = BookmarkEntity.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: #keyPath(BookmarkEntity.title),
+                                                         ascending: false)]
+        fetchRequest.returnsObjectsAsFaults = false
+        bookmarks = (try? context.fetch(fetchRequest)) ?? []
+    }
+
+    func deleteAll() {
+        resetBookmarks { [weak self] _ in
+            self?.fetch()
+        }
+    }
+
+    private func cacheReadOnlyTopLevelBookmarksFolders() {
+        context.performAndWait {
+            guard let folder = BookmarkUtils.fetchRootFolder(context) else {
+                fatalError("Top level folder missing")
+            }
+
+            self.rootLevelFolderObjectID = folder.objectID
+            let favoritesFolderUUID = AppDependencyProvider.shared.appSettings.favoritesDisplayMode.displayedFolder.rawValue
+            self.favoritesFolderObjectID = BookmarkUtils.fetchFavoritesFolder(withUUID: favoritesFolderUUID, in: context)?.objectID
+        }
+    }
+
+    private func applyChangesAndSave(changes: @escaping (NSManagedObjectContext) throws -> Void,
+                                     onError: @escaping (Error) -> Void,
+                                     onDidSave: @escaping () -> Void) {
+        let maxRetries = 2
+        var iteration = 0
+
+        context.perform { [weak self] in
+            guard let context = self?.context else { return }
+
+            var lastError: Error?
+            while iteration < maxRetries {
+                do {
+                    try changes(context)
+
+                    try context.save()
+                    onDidSave()
+                    return
+                } catch {
+                    let nsError = error as NSError
+                    if nsError.code == NSManagedObjectMergeError || nsError.code == NSManagedObjectConstraintMergeError {
+                        iteration += 1
+                        lastError = error
+                        context.reset()
+                    } else {
+                        onError(error)
+                        return
+                    }
+                }
+            }
+
+            if let lastError = lastError {
+                onError(lastError)
+            }
+        }
+    }
+
+    private func resetBookmarks(completionHandler: @escaping (Error?) -> Void) {
+        applyChangesAndSave { context in
+            let fetchRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest(entityName: "BookmarkEntity")
+            let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
+
+            try context.execute(deleteRequest)
+
+            BookmarkUtils.prepareFoldersStructure(in: context)
+
+        } onError: { error in
+            assertionFailure("Failed to reset bookmarks: \(error)")
+            DispatchQueue.main.async {
+                completionHandler(error)
+            }
+        } onDidSave: { [self] in
+            DispatchQueue.main.async {
+                self.cacheReadOnlyTopLevelBookmarksFolders()
+                completionHandler(nil)
+            }
+        }
+    }
+
+}

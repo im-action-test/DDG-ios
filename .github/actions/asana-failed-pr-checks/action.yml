@@ -1,0 +1,58 @@
+name: Report Failed PR Checks to Asana
+description: Integrates with Asana to report failed PR checks as a task.
+inputs:
+  asana-access-token:
+    description: "Asana access token"
+    required: true
+  asana-section-id:
+    description: "Asana project's section ID"
+    required: true
+  action:
+    description: "Action to perform: choose between 'create-task' and 'close-task'"
+    required: true
+  commit-author:
+    description: "Last commit author's GitHub handle"
+    required: false
+  pr-reviewers:
+    description: "Comma-separated list of PR reviewers' GitHub handles"
+    required: false
+  github-token:
+    description: "GitHub token"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - id: get-asana-user-id
+      if: inputs.action == 'create-task'
+      uses: duckduckgo/native-github-asana-sync@v1.9
+      with:
+        action: 'get-asana-user-id'
+        github-username: ${{ inputs.commit-author }}
+        github-pat: ${{ inputs.github-token }}
+    - id: report-failed-pr-checks
+      env:
+        WORKFLOW_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        GITHUB_PR_REVIEWERS: ${{ inputs.pr-reviewers }}
+        ASANA_SECTION_ID: ${{ inputs.asana-section-id }}
+        ASANA_ACCESS_TOKEN: ${{ inputs.asana-access-token }}
+        ASANA_ASSIGNEE: ${{ steps.get-asana-user-id.outputs.asanaUserId }}
+      shell: bash
+      run: |
+        case "${{ inputs.action }}" in
+          "create-task")
+            ${{ github.action_path }}/report-failed-pr-checks.sh create-task \
+              -t "PR Check is failing on ${{ env.GITHUB_REF_NAME }}" \
+              -d "PR Checks conducted after merging have failed. See ${{ env.WORKFLOW_URL }}. Follow the steps on https://app.asana.com/0/1202500774821704/1205317064731691 to resolve this issue.\n\nFlaky Test Resolution\n\nFor guidance on addressing flaky tests, please refer to our [Flaky Test Resolution Guide](https://app.asana.com/1/137249556945/project/1204186595873227/task/1211692881229935). If you've successfully resolved a flaky test issue and believe it could help others, share your example in the guide!"
+            ;;
+          "close-task")
+            ${{ github.action_path }}/report-failed-pr-checks.sh close-task \
+              -m "Closing this one as checks are passing after a re-run. See ${{ env.WORKFLOW_URL }}/attempts/${{ github.run_attempt }} for details."
+            ;;
+          *)
+            echo "::error::Invalid action '${{ inputs.action }}'."
+            exit 1
+            ;;
+        esac

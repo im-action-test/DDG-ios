@@ -1,0 +1,22 @@
+appId: com.duckduckgo.mobile.ios
+---
+
+- scrollUntilVisible:
+    element: Passwords & Autofill
+- tapOn: Passwords & Autofill
+- tapOn: Passwords
+- tapOn: Add 24
+- tapOn:
+    id: Field_PasswordName
+- inputText: My Personal Website
+- tapOn:
+    id: Field_Username
+- inputText: me@mypersonalwebsite.com
+- tapOn:
+    id: Field_Address
+- inputText: mypersonalwebsite.com
+- tapOn: Save
+- tapOn: Passwords
+- tapOn: Passwords & Autofill
+- tapOn: Settings
+- tapOn: Done

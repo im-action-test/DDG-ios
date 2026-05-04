@@ -1,0 +1,74 @@
+//
+//  SubscriptionAIChatView.swift
+//  DuckDuckGo
+//
+//  Copyright © 2025 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import Core
+import SwiftUI
+import DesignResourcesKit
+import DesignResourcesKitIcons
+
+struct SubscriptionAIChatView: View {
+
+    let viewModel: SettingsViewModel
+
+    var body: some View {
+        let isAIFeaturesEnabled = viewModel.isAIChatEnabled
+        let hasSubscription = viewModel.isPaidAIChatAvailable
+        let shouldShowAsOn = hasSubscription && isAIFeaturesEnabled
+        
+        let currentDescription = SettingsDescription(image: DesignSystemImages.Color.Size128.duckAIPaid,
+                                                    title: UserText.aiChatSubscriptionTitle,
+                                                    status: shouldShowAsOn ? .on : .off,
+                                                    explanation: UserText.aiChatSubscriptionCaption)
+
+        List {
+            SettingsDescriptionView(content: currentDescription)
+            if isAIFeaturesEnabled {
+                Section {
+                    SettingsCellView(label: UserText.openSubscriptionAIChat, action: {
+                        viewModel.openAIChat()
+                    }, webLinkIndicator: true, isButton: true
+                    )
+                }
+                Section(footer: Text(UserText.aiChatSubscriptionConfigureAIFooter)) {
+                    SettingsCustomCell(content: {
+                        Text(UserText.openAIFeaturesSettings)
+                            .daxBodyRegular()
+                            .foregroundColor(Color(designSystemColor: .accent))
+                    }, action: {
+                        viewModel.openAIFeaturesSettings()
+                    }, isButton: true)
+                }
+            } else {
+                Section {
+                    SettingsCustomCell(content: {
+                        Text(UserText.aiChatSubscriptionEnableAIFeatures)
+                            .daxBodyRegular()
+                            .foregroundColor(Color(designSystemColor: .accent))
+                    }, action: {
+                        viewModel.openAIFeaturesSettings()
+                    }, isButton: true)
+                }
+            }
+        }
+        .applySettingsListModifiers(title: UserText.aiChatSubscriptionTitle,
+                                    displayMode: .inline,
+                                    viewModel: viewModel)
+    }
+
+}

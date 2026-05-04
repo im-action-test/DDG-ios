@@ -1,0 +1,119 @@
+//
+//  CCFRequestParameters.swift
+//
+//  Copyright © 2023 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import Foundation
+
+public enum CCFRequestData: Encodable {
+    case solveCaptcha(CaptchaToken)
+    case userData(ProfileQuery, ExtractedProfile?, FetchedEmail?, ExtractedEmailData)
+}
+
+public struct CaptchaToken: Encodable, Sendable {
+    let token: String
+}
+
+public struct FetchedEmail: Encodable, Sendable {
+    let email: String
+
+    public init(email: String) {
+        self.email = email
+    }
+}
+
+/// Keyed bag of values extracted from an email by a `getEmailData` action — verification codes,
+/// tokens, links, etc. Forwarded to C-S-S as `data.emailData` so downstream actions can address
+/// individual values by name via `dataSource: "emailData"`.
+public typealias ExtractedEmailData = [String: String]
+
+struct InitParams: Encodable {
+    let profileData: ProfileQuery
+    let dataBrokerData: DataBroker
+}
+
+private enum UserDataCodingKeys: String, CodingKey {
+    case userProfile
+    case extractedProfile
+    case fetchedEmail
+    case emailData
+}
+
+struct ActionRequest: Encodable {
+    let action: Action
+    let data: CCFRequestData?
+
+    enum CodingKeys: String, CodingKey {
+        case action
+        case data
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch data {
+        case .solveCaptcha(let captchaToken):
+            try container.encode(captchaToken, forKey: .data)
+        case .userData(let profileQuery, let extractedProfile, let fetchedEmail, let emailData):
+            var userDataContainer = container.nestedContainer(keyedBy: UserDataCodingKeys.self, forKey: .data)
+            try userDataContainer.encode(profileQuery, forKey: .userProfile)
+            if let extractedProfile = extractedProfile {
+                try userDataContainer.encode(extractedProfile, forKey: .extractedProfile)
+            }
+            if let fetchedEmail = fetchedEmail {
+                try userDataContainer.encode(fetchedEmail, forKey: .fetchedEmail)
+            }
+            if !emailData.isEmpty {
+                try userDataContainer.encode(emailData, forKey: .emailData)
+            }
+        default:
+            assertionFailure("Data not found. Please add the mission data to the encoding list.")
+        }
+
+        if let json = action.json {
+            guard let rawActionObject = try JSONSerialization.jsonObject(with: json) as? [String: Any] else {
+                throw EncodingError.invalidValue(json, EncodingError.Context(codingPath: [CodingKeys.action], debugDescription: "Invalid action JSON payload"))
+            }
+            try container.encodeIfPresent(rawActionObject, forKey: .action)
+            return
+        }
+
+        switch action {
+        case let navigateAction as NavigateAction:
+            try container.encode(navigateAction, forKey: .action)
+        case let extractAction as ExtractAction:
+            try container.encode(extractAction, forKey: .action)
+        case let fillFormAction as FillFormAction:
+            try container.encode(fillFormAction, forKey: .action)
+        case let clickAction as ClickAction:
+            try container.encode(clickAction, forKey: .action)
+        case let expectationAction as ExpectationAction:
+            try container.encode(expectationAction, forKey: .action)
+        case let getCaptchaInfo as GetCaptchaInfoAction:
+            try container.encode(getCaptchaInfo, forKey: .action)
+        case let solveCaptcha as SolveCaptchaAction:
+            try container.encode(solveCaptcha, forKey: .action)
+        case let conditionAction as ConditionAction:
+            try container.encode(conditionAction, forKey: .action)
+        default:
+            assertionFailure("Action not found. Please add the missing action to the encoding list.")
+        }
+    }
+}
+
+struct Params: Encodable {
+    let state: ActionRequest
+}

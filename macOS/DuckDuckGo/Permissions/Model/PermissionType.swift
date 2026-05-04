@@ -1,0 +1,196 @@
+//
+//  PermissionType.swift
+//
+//  Copyright © 2021 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+import AppKit
+import CommonObjCExtensions
+import DesignResourcesKitIcons
+import Foundation
+import WebKit
+
+enum PermissionType: Hashable {
+    private enum Constants: String {
+        case camera
+        case microphone
+        case geolocation
+        case popups
+        case notification
+        case external = "external_"
+        case autoplayPolicy = "autoplay_policy"
+    }
+
+    case camera
+    case microphone
+    case geolocation
+    case popups
+    case notification
+    case externalScheme(scheme: String)
+    case autoplayPolicy
+
+    var rawValue: String {
+        switch self {
+        case .camera: return Constants.camera.rawValue
+        case .microphone: return Constants.microphone.rawValue
+        case .geolocation: return Constants.geolocation.rawValue
+        case .popups: return Constants.popups.rawValue
+        case .notification: return Constants.notification.rawValue
+        case .autoplayPolicy: return Constants.autoplayPolicy.rawValue
+        case .externalScheme(scheme: let scheme): return Constants.external.rawValue + scheme
+        }
+    }
+
+    init?(rawValue: String) {
+        switch rawValue {
+        case Constants.camera.rawValue: self = .camera
+        case Constants.microphone.rawValue: self = .microphone
+        case Constants.geolocation.rawValue: self = .geolocation
+        case Constants.popups.rawValue: self = .popups
+        case Constants.notification.rawValue: self = .notification
+        case Constants.autoplayPolicy.rawValue: self = .autoplayPolicy
+        default:
+            if rawValue.hasPrefix(Constants.external.rawValue) {
+                let scheme = rawValue.dropping(prefix: Constants.external.rawValue)
+                guard !scheme.isEmpty else { return nil }
+                self = .externalScheme(scheme: scheme)
+                return
+            }
+            return nil
+        }
+    }
+}
+
+extension PermissionType {
+
+    static var permissionsUpdatedExternally: [PermissionType] {
+        return [.camera, .microphone, .geolocation, .notification]
+    }
+
+    var canPersistGrantedDecision: Bool {
+        switch self {
+        case .camera, .microphone, .externalScheme, .popups, .geolocation, .notification, .autoplayPolicy:
+            return true
+        }
+    }
+
+    var canPersistDeniedDecision: Bool {
+        switch self {
+        case .camera, .microphone, .geolocation, .externalScheme, .notification, .autoplayPolicy:
+            return true
+        case .popups:
+            return false
+        }
+    }
+
+    var isExternalScheme: Bool {
+        if case .externalScheme = self {
+            return true
+        }
+        return false
+    }
+
+    var isPopups: Bool {
+        if case .popups = self {
+            return true
+        }
+        return false
+    }
+
+    /// Outline icon representing this permission type
+    var icon: NSImage {
+        switch self {
+        case .camera:
+            return DesignSystemImages.Glyphs.Size16.permissionCamera
+        case .microphone:
+            return DesignSystemImages.Glyphs.Size16.permissionMicrophone
+        case .geolocation:
+            return DesignSystemImages.Glyphs.Size16.permissionsLocation
+        case .popups:
+            return DesignSystemImages.Glyphs.Size16.popupBlocked
+        case .notification:
+            return DesignSystemImages.Glyphs.Size16.permissionsNotification
+        case .externalScheme:
+            return DesignSystemImages.Glyphs.Size16.openIn
+        case .autoplayPolicy:
+            return DesignSystemImages.Glyphs.Size16.videoPlayer
+        }
+    }
+
+    /// Solid/filled icon for when permission is active (camera, microphone, geolocation only)
+    var solidIcon: NSImage? {
+        switch self {
+        case .camera:
+            return DesignSystemImages.Glyphs.Size16.permissionCameraSolid
+        case .microphone:
+            return DesignSystemImages.Glyphs.Size16.permissionMicrophoneSolid
+        case .geolocation:
+            return DesignSystemImages.Glyphs.Size16.permissionsLocationSolid
+        case .notification, .popups, .externalScheme, .autoplayPolicy:
+            return nil
+        }
+    }
+
+    /// Whether this permission type requires system-level permission to be enabled
+    var requiresSystemPermission: Bool {
+        switch self {
+        case .geolocation, .notification:
+            return true
+        case .camera, .microphone, .popups, .externalScheme, .autoplayPolicy:
+            return false
+        }
+    }
+
+}
+
+extension Array where Element == PermissionType {
+
+    @available(OSX 12, *)
+    init?(devices: WKMediaCaptureType) {
+        switch devices {
+        case .camera:
+            self = [.camera]
+        case .microphone:
+            self = [.microphone]
+        case .cameraAndMicrophone:
+            self = [.camera, .microphone]
+        @unknown default:
+            return nil
+        }
+    }
+
+    init?(devices: _WKCaptureDevices) {
+        var result = Array()
+        if devices.contains(.camera) {
+            result.append(.camera)
+        }
+        if devices.contains(.microphone) {
+            result.append(.microphone)
+        }
+        if devices.contains(.display) {
+            // https://app.asana.com/0/1177771139624306/1201416749093968
+            // result.append(.display)
+        }
+        guard !result.isEmpty else { return nil }
+        self = result
+    }
+
+    static var camera: Self { [.camera] }
+    static var microphone: Self { [.microphone] }
+    static var geolocation: Self { [.geolocation] }
+    static var popups: Self { [.popups] }
+    static func externalScheme(_ scheme: String) -> Self { return [.externalScheme(scheme: scheme)] }
+
+}

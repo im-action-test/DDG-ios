@@ -1,0 +1,353 @@
+//
+//  AIChatPreferencesStorage.swift
+//
+//  Copyright © 2025 DuckDuckGo. All rights reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+#if os(macOS)
+import Combine
+import Foundation
+
+public protocol AIChatPreferencesStorage {
+    var isAIFeaturesEnabled: Bool { get set }
+    var isAIFeaturesEnabledPublisher: AnyPublisher<Bool, Never> { get }
+
+    var showShortcutOnNewTabPage: Bool { get set }
+    var showShortcutOnNewTabPagePublisher: AnyPublisher<Bool, Never> { get }
+
+    var showShortcutInApplicationMenu: Bool { get set }
+    var showShortcutInApplicationMenuPublisher: AnyPublisher<Bool, Never> { get }
+
+    var showShortcutInAddressBar: Bool { get set }
+    var showShortcutInAddressBarPublisher: AnyPublisher<Bool, Never> { get }
+
+    var showShortcutInAddressBarWhenTyping: Bool { get set }
+    var showShortcutInAddressBarWhenTypingPublisher: AnyPublisher<Bool, Never> { get }
+
+    var openAIChatInSidebar: Bool { get set }
+    var openAIChatInSidebarPublisher: AnyPublisher<Bool, Never> { get }
+
+    var shouldAutomaticallySendPageContext: Bool { get set }
+    var shouldAutomaticallySendPageContextPublisher: AnyPublisher<Bool, Never> { get }
+
+    var showSearchAndDuckAIToggle: Bool { get set }
+    var showSearchAndDuckAITogglePublisher: AnyPublisher<Bool, Never> { get }
+
+    var userDidSeeToggleOnboarding: Bool { get set }
+
+    var lastUsedSidebarWidth: Double? { get set }
+
+    var hasAcceptedTermsAndConditions: Bool { get set }
+
+    func reset()
+}
+
+public struct DefaultAIChatPreferencesStorage: AIChatPreferencesStorage {
+    private let userDefaults: UserDefaults
+    private let notificationCenter: NotificationCenter
+
+    public var isAIFeaturesEnabledPublisher: AnyPublisher<Bool, Never> {
+        userDefaults.isAIFeaturesEnabledPublisher
+    }
+
+    public var showShortcutOnNewTabPagePublisher: AnyPublisher<Bool, Never> {
+        userDefaults.showAIChatShortcutOnNewTabPagePublisher
+    }
+
+    public var showShortcutInApplicationMenuPublisher: AnyPublisher<Bool, Never> {
+        userDefaults.showAIChatShortcutInApplicationMenuPublisher
+    }
+
+    public var showShortcutInAddressBarPublisher: AnyPublisher<Bool, Never> {
+        userDefaults.showAIChatShortcutInAddressBarPublisher
+    }
+
+    public var showShortcutInAddressBarWhenTypingPublisher: AnyPublisher<Bool, Never> {
+        userDefaults.showAIChatShortcutInAddressBarWhenTypingPublisher
+    }
+
+    public var openAIChatInSidebarPublisher: AnyPublisher<Bool, Never> {
+        userDefaults.openAIChatInSidebarPublisher
+    }
+
+    public var shouldAutomaticallySendPageContextPublisher: AnyPublisher<Bool, Never> {
+        userDefaults.shouldAutomaticallySendPageContextPublisher
+    }
+
+    public var showSearchAndDuckAITogglePublisher: AnyPublisher<Bool, Never> {
+        userDefaults.showSearchAndDuckAITogglePublisher
+    }
+
+    public init(userDefaults: UserDefaults = .standard,
+                notificationCenter: NotificationCenter = .default) {
+        self.userDefaults = userDefaults
+        self.notificationCenter = notificationCenter
+    }
+
+    public var isAIFeaturesEnabled: Bool {
+        get { userDefaults.isAIFeaturesEnabled }
+        set { userDefaults.isAIFeaturesEnabled = newValue }
+    }
+
+    public var showShortcutOnNewTabPage: Bool {
+        get { userDefaults.showAIChatShortcutOnNewTabPage }
+        set { userDefaults.showAIChatShortcutOnNewTabPage = newValue }
+    }
+
+    public var showShortcutInApplicationMenu: Bool {
+        get { userDefaults.showAIChatShortcutInApplicationMenu }
+        set { userDefaults.showAIChatShortcutInApplicationMenu = newValue }
+    }
+
+    public var showShortcutInAddressBar: Bool {
+        get { userDefaults.showAIChatShortcutInAddressBar }
+        set { userDefaults.showAIChatShortcutInAddressBar = newValue }
+    }
+
+    public var showShortcutInAddressBarWhenTyping: Bool {
+        get { userDefaults.showAIChatShortcutInAddressBarWhenTyping }
+        set { userDefaults.showAIChatShortcutInAddressBarWhenTyping = newValue }
+    }
+
+    public var openAIChatInSidebar: Bool {
+        get { userDefaults.openAIChatInSidebar }
+        set { userDefaults.openAIChatInSidebar = newValue }
+    }
+
+    public var shouldAutomaticallySendPageContext: Bool {
+        get { userDefaults.shouldAutomaticallySendPageContext }
+        set { userDefaults.shouldAutomaticallySendPageContext = newValue }
+    }
+
+    public var showSearchAndDuckAIToggle: Bool {
+        get { userDefaults.showSearchAndDuckAIToggle }
+        set { userDefaults.showSearchAndDuckAIToggle = newValue }
+    }
+
+    public var userDidSeeToggleOnboarding: Bool {
+        get { userDefaults.userDidSeeToggleOnboarding }
+        set { userDefaults.userDidSeeToggleOnboarding = newValue }
+    }
+
+    public var lastUsedSidebarWidth: Double? {
+        get { userDefaults.lastUsedSidebarWidth }
+        set { userDefaults.lastUsedSidebarWidth = newValue }
+    }
+
+    public var hasAcceptedTermsAndConditions: Bool {
+        get { userDefaults.hasAcceptedTermsAndConditions }
+        set { userDefaults.hasAcceptedTermsAndConditions = newValue }
+    }
+
+    public func reset() {
+        userDefaults.isAIFeaturesEnabled = UserDefaults.isAIFeaturesEnabledDefaultValue
+        userDefaults.showAIChatShortcutOnNewTabPage = UserDefaults.showAIChatShortcutOnNewTabPageDefaultValue
+        userDefaults.showAIChatShortcutInApplicationMenu = UserDefaults.showAIChatShortcutInApplicationMenuDefaultValue
+        userDefaults.showAIChatShortcutInAddressBar = UserDefaults.showAIChatShortcutInAddressBarDefaultValue
+        userDefaults.showAIChatShortcutInAddressBarWhenTyping = UserDefaults.showAIChatShortcutInAddressBarWhenTypingDefaultValue
+        userDefaults.openAIChatInSidebar = UserDefaults.openAIChatInSidebarDefaultValue
+        userDefaults.shouldAutomaticallySendPageContext = UserDefaults.shouldAutomaticallySendPageContextDefaultValue
+        userDefaults.showSearchAndDuckAIToggle = UserDefaults.showSearchAndDuckAIToggleDefaultValue
+        userDefaults.userDidSeeToggleOnboarding = false
+        userDefaults.lastUsedSidebarWidth = nil
+        userDefaults.hasAcceptedTermsAndConditions = false
+    }
+}
+
+private extension UserDefaults {
+    enum Keys {
+        static let aiFeatures = "aichat.enabled"
+        static let showAIChatShortcutOnNewTabPage = "aichat.showAIChatShortcutOnNewTabPage"
+        static let showAIChatShortcutInApplicationMenu = "aichat.showAIChatShortcutInApplicationMenu"
+        static let showAIChatShortcutInAddressBar = "aichat.showAIChatShortcutInAddressBar"
+        static let showAIChatShortcutInAddressBarWhenTyping = "aichat.showAIChatShortcutInAddressBarWhenTyping"
+        static let openAIChatInSidebar = "aichat.openAIChatInSidebar"
+        static let shouldAutomaticallySendPageContext = "aichat.sendPageContextAutomatically"
+        static let showSearchAndDuckAIToggle = "aichat.showSearchAndDuckAIToggle"
+        static let userDidSeeToggleOnboarding = "aichat.userDidSeeToggleOnboarding"
+        static let lastUsedSidebarWidth = "aichat.sidebar.lastUsedWidth"
+        static let hasAcceptedTermsAndConditions = "aichat.hasAcceptedTermsAndConditions"
+    }
+
+    static let isAIFeaturesEnabledDefaultValue = true
+    static let showAIChatShortcutOnNewTabPageDefaultValue = true
+    static let showAIChatShortcutInApplicationMenuDefaultValue = true
+    static let showAIChatShortcutInAddressBarDefaultValue = true
+    static let showAIChatShortcutInAddressBarWhenTypingDefaultValue = true
+    static let openAIChatInSidebarDefaultValue = true
+    static let shouldAutomaticallySendPageContextDefaultValue = false
+    static let showSearchAndDuckAIToggleDefaultValue = true
+
+    @objc dynamic var isAIFeaturesEnabled: Bool {
+        get {
+            value(forKey: Keys.aiFeatures) as? Bool ?? Self.isAIFeaturesEnabledDefaultValue
+        }
+
+        set {
+            guard newValue != isAIFeaturesEnabled else { return }
+            set(newValue, forKey: Keys.aiFeatures)
+        }
+    }
+
+    @objc dynamic var showAIChatShortcutOnNewTabPage: Bool {
+        get {
+            value(forKey: Keys.showAIChatShortcutOnNewTabPage) as? Bool ?? Self.showAIChatShortcutOnNewTabPageDefaultValue
+        }
+
+        set {
+            guard newValue != showAIChatShortcutOnNewTabPage else { return }
+            set(newValue, forKey: Keys.showAIChatShortcutOnNewTabPage)
+        }
+    }
+
+    @objc dynamic var showAIChatShortcutInApplicationMenu: Bool {
+        get {
+            value(forKey: Keys.showAIChatShortcutInApplicationMenu) as? Bool ?? Self.showAIChatShortcutInApplicationMenuDefaultValue
+        }
+
+        set {
+            guard newValue != showAIChatShortcutInApplicationMenu else { return }
+            set(newValue, forKey: Keys.showAIChatShortcutInApplicationMenu)
+        }
+    }
+
+    @objc dynamic var showAIChatShortcutInAddressBar: Bool {
+        get {
+            value(forKey: Keys.showAIChatShortcutInAddressBar) as? Bool ?? Self.showAIChatShortcutInAddressBarDefaultValue
+        }
+
+        set {
+            guard newValue != showAIChatShortcutInAddressBar else { return }
+            set(newValue, forKey: Keys.showAIChatShortcutInAddressBar)
+        }
+    }
+
+    @objc dynamic var showAIChatShortcutInAddressBarWhenTyping: Bool {
+        get {
+            value(forKey: Keys.showAIChatShortcutInAddressBarWhenTyping) as? Bool ?? Self.showAIChatShortcutInAddressBarWhenTypingDefaultValue
+        }
+
+        set {
+            guard newValue != showAIChatShortcutInAddressBarWhenTyping else { return }
+            set(newValue, forKey: Keys.showAIChatShortcutInAddressBarWhenTyping)
+        }
+    }
+
+    @objc dynamic var openAIChatInSidebar: Bool {
+        get {
+            value(forKey: Keys.openAIChatInSidebar) as? Bool ?? Self.openAIChatInSidebarDefaultValue
+        }
+
+        set {
+            guard newValue != openAIChatInSidebar else { return }
+            set(newValue, forKey: Keys.openAIChatInSidebar)
+        }
+    }
+
+    @objc dynamic var shouldAutomaticallySendPageContext: Bool {
+        get {
+            value(forKey: Keys.shouldAutomaticallySendPageContext) as? Bool ?? Self.shouldAutomaticallySendPageContextDefaultValue
+        }
+
+        set {
+            guard newValue != shouldAutomaticallySendPageContext else { return }
+            set(newValue, forKey: Keys.shouldAutomaticallySendPageContext)
+        }
+    }
+
+    var isAIFeaturesEnabledPublisher: AnyPublisher<Bool, Never> {
+        publisher(for: \.isAIFeaturesEnabled).eraseToAnyPublisher()
+    }
+
+    var showAIChatShortcutOnNewTabPagePublisher: AnyPublisher<Bool, Never> {
+        publisher(for: \.showAIChatShortcutOnNewTabPage).eraseToAnyPublisher()
+    }
+
+    var showAIChatShortcutInApplicationMenuPublisher: AnyPublisher<Bool, Never> {
+        publisher(for: \.showAIChatShortcutInApplicationMenu).eraseToAnyPublisher()
+    }
+
+    var showAIChatShortcutInAddressBarPublisher: AnyPublisher<Bool, Never> {
+        publisher(for: \.showAIChatShortcutInAddressBar).eraseToAnyPublisher()
+    }
+
+    var showAIChatShortcutInAddressBarWhenTypingPublisher: AnyPublisher<Bool, Never> {
+        publisher(for: \.showAIChatShortcutInAddressBarWhenTyping).eraseToAnyPublisher()
+    }
+
+    var openAIChatInSidebarPublisher: AnyPublisher<Bool, Never> {
+        publisher(for: \.openAIChatInSidebar).eraseToAnyPublisher()
+    }
+
+    var shouldAutomaticallySendPageContextPublisher: AnyPublisher<Bool, Never> {
+        publisher(for: \.shouldAutomaticallySendPageContext).eraseToAnyPublisher()
+    }
+
+    @objc dynamic var showSearchAndDuckAIToggle: Bool {
+        get {
+            /// If not explicitly set by user, inherit from showAIChatShortcutInAddressBarWhenTyping
+            if value(forKey: Keys.showSearchAndDuckAIToggle) == nil {
+                return showAIChatShortcutInAddressBarWhenTyping
+            }
+            return value(forKey: Keys.showSearchAndDuckAIToggle) as? Bool ?? Self.showSearchAndDuckAIToggleDefaultValue
+        }
+
+        set {
+            /// Note: Unlike other settings, we don't guard against same-value writes because
+            /// we need to persist the value even if it matches the inherited value
+            set(newValue, forKey: Keys.showSearchAndDuckAIToggle)
+        }
+    }
+
+    var showSearchAndDuckAITogglePublisher: AnyPublisher<Bool, Never> {
+        publisher(for: \.showSearchAndDuckAIToggle).eraseToAnyPublisher()
+    }
+
+    var userDidSeeToggleOnboarding: Bool {
+        get {
+            value(forKey: Keys.userDidSeeToggleOnboarding) as? Bool ?? false
+        }
+
+        set {
+            guard newValue != userDidSeeToggleOnboarding else { return }
+            set(newValue, forKey: Keys.userDidSeeToggleOnboarding)
+        }
+    }
+
+    var lastUsedSidebarWidth: Double? {
+        get {
+            value(forKey: Keys.lastUsedSidebarWidth) as? Double
+        }
+
+        set {
+            if let newValue {
+                set(newValue, forKey: Keys.lastUsedSidebarWidth)
+            } else {
+                removeObject(forKey: Keys.lastUsedSidebarWidth)
+            }
+        }
+    }
+
+    var hasAcceptedTermsAndConditions: Bool {
+        get {
+            value(forKey: Keys.hasAcceptedTermsAndConditions) as? Bool ?? false
+        }
+
+        set {
+            set(newValue, forKey: Keys.hasAcceptedTermsAndConditions)
+        }
+    }
+}
+#endif

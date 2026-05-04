@@ -1,0 +1,23 @@
+appId: com.duckduckgo.mobile.ios
+---
+
+- assertVisible: Sync & Backup
+- tapOn: Sync & Backup
+- assertVisible: Begin Syncing
+- assertVisible: Recover Synced Data
+- tapOn: Recover Synced Data
+- inputText: "0000"
+- pressKey: Enter
+- tapOn: Recover Synced Data
+- runFlow:
+    when:
+      visible: Allows you to upload photographs and videos
+    commands:
+        - tapOn: "Allow"
+- tapOn: Enter Text Code Manually
+- tapOn: Paste
+- assertVisible: Recover Your Data Easily
+- tapOn: Next
+- assertVisible: Your data is synced!
+- tapOn: Done
+- assertVisible: Sync Enabled
