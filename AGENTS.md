@@ -19,3 +19,4 @@ Detailed rules live in `.cursor/rules/`. Read from the list below when the reque
 | `anti-patterns.mdc` | What NOT to do: singletons, async mistakes, SwiftUI pitfalls, testing mistakes |
 | `user-defaults-storage.mdc` | Storing settings or preferences via `KeyValueStore` |
 | `pixels.mdc` | Defining, naming, or firing pixel events |
+
