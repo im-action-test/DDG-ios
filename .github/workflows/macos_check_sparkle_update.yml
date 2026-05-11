@@ -1,8 +1,6 @@
 name: Check Sparkle Update
 
 on:
-  schedule:
-    - cron: '0 1 * * 5'  # Every Friday at 01:00 UTC
   workflow_dispatch:
 
 permissions:

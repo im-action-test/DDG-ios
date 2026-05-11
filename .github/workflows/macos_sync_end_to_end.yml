@@ -6,8 +6,6 @@ defaults:
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 5 * * *' # run at 5 AM UTC
 
 concurrency:
   group: ${{ github.workflow }}

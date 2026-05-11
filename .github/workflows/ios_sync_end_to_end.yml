@@ -5,8 +5,6 @@ defaults:
     working-directory: iOS
 
 on:
-  schedule:
-    - cron: '0 1 * * *' # run at 1 AM UTC
   workflow_dispatch:
 
 concurrency:

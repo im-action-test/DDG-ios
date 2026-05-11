@@ -1,8 +1,7 @@
 name: Shared - Close Stale Pull Requests
 
 on:
-  schedule:
-    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   close_stale_prs:

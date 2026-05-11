@@ -6,8 +6,6 @@ defaults:
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * 1-5' # 3AM UTC offsetted to legacy to avoid action-junit-report@v4 bug
   push:
     branches: [ main, "release/macos/**", "hotfix/macos/**" ]
     paths:
